@@ -30,9 +30,14 @@
         </div>
         <label class="mode-label" for="mode">حالت نمایش</label>
         <select id="mode">
-          <option value="smart">هوشمند — پیشنهاد شده</option>
+          <option value="smart">هوشمند — تشخیص خودکار</option>
           <option value="rtl">اجبار راست‌چین همهٔ پیام‌ها</option>
+          <option value="ltr">اجبار چپ‌چین همهٔ پیام‌ها</option>
         </select>
+        <p class="field-hint">برای هر پیام هم می‌توانید دکمهٔ Auto / RTL / LTR را بزنید.</p>
+      </section>
+      <section class="card">
+        <h2 class="section-title">نمایش چت</h2>
         <label class="mode-label" for="font">فونت پیام‌های فارسی</label>
         <select id="font">
           <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
@@ -64,6 +69,25 @@
             </select></label
           >
         </div>
+        <label class="mode-label" for="bubbleWidth">عرض پیام‌ها <output id="bubbleWidthValue">100%</output></label>
+        <input id="bubbleWidth" class="range" type="range" min="50" max="100" step="5" value="100" />
+        <label class="mode-label" for="fontSize">اندازهٔ متن <output id="fontSizeValue">14px</output></label>
+        <input id="fontSize" class="range" type="range" min="11" max="22" step="1" value="14" />
+      </section>
+      <section class="card">
+        <h2 class="section-title">رفتار و دسترس‌پذیری</h2>
+        <div class="check-options">
+          <label><input id="showTimestamps" type="checkbox" checked /><span>نمایش زمان پیام</span></label>
+          <label><input id="showBadges" type="checkbox" checked /><span>نمایش نشان‌ها</span></label>
+          <label><input id="showReplies" type="checkbox" checked /><span>نمایش پیش‌نمایش پاسخ</span></label>
+          <label><input id="userAccents" type="checkbox" checked /><span>رنگ ثابت نام کاربران</span></label>
+          <label><input id="debugMode" type="checkbox" /><span>حالت عیب‌یابی جهت متن</span></label>
+        </div>
+        <label class="mode-label" for="highlight">برجسته‌کردن واژه در چت</label>
+        <input id="highlight" class="text-input" type="text" maxlength="40" placeholder="اختیاری" />
+      </section>
+      <section class="card">
+        <h2 class="section-title">پنل افزونه</h2>
         <label class="mode-label" for="popupFont">فونت پنل افزونه</label>
         <select id="popupFont">
           <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
@@ -80,7 +104,7 @@
       <button id="reload" class="reload" type="button">
         تازه‌سازی صفحهٔ Kick
       </button>
-      <p class="footer">بدون تغییر رنگ، ظاهر یا چیدمان Kick</p>
+      <p class="footer">تنظیمات فقط روی نمایش پیام‌های چت اثر می‌گذارند</p>
     </main>
     <script src="popup.js"></script>
   </body>

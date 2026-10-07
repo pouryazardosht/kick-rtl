@@ -1,15 +1,22 @@
 /** Display-only RTL correction for Kick's virtualized chat list. */
 const CHAT_ROOT_SELECTOR = "#chatroom-messages";
-const TEXT_TARGET_SELECTOR =
-  '[data-kick-bidi="auto"], [data-kick-rtl-bidi], [dir="auto"]';
+const TEXT_TARGET_SELECTOR = [
+  '[data-kick-bidi="auto"]',
+  "[data-kick-rtl-bidi]",
+  '[dir="auto"]',
+  "blockquote",
+  '[data-testid*="reply"]',
+  '[data-testid*="quote"]',
+].join(", ");
 const PROCESSED_ATTRIBUTE = "data-kick-rtl-bidi";
 const ORIGINAL_DIR_ATTRIBUTE = "data-kick-rtl-original-dir";
+const ORIGINAL_BIDI_ATTRIBUTE = "data-kick-rtl-original-bidi";
 const CARD_ATTRIBUTE = "data-kick-rtl-card";
 const BODY_ATTRIBUTE = "data-kick-rtl-body";
 const RTL_STRONG_CHARACTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFC]/u;
 const LTR_STRONG_CHARACTER = /[A-Za-z\u00C0-\u02AF\u0370-\u052F]/u;
 type Direction = "rtl" | "ltr";
-type Mode = "smart" | "rtl";
+type Mode = "smart" | "rtl" | "ltr";
 type Font = "vazirmatn" | "arad" | "iransans" | "shabnam" | "system";
 type Density = "compact" | "comfortable";
 type Surface = "soft" | "midnight";
@@ -27,6 +34,7 @@ interface Settings {
   showReplies: boolean;
   userAccents: boolean;
   highlight: string;
+  debugMode: boolean;
 }
 interface MessageParts {
   text: HTMLElement;
@@ -47,22 +55,67 @@ const DEFAULT_SETTINGS: Settings = {
   showReplies: true,
   userAccents: true,
   highlight: "",
+  debugMode: false,
 };
 let settings = { ...DEFAULT_SETTINGS };
 let chatObserver: MutationObserver | undefined;
 let activeRoot: HTMLElement | undefined;
+let settingsRevision = 0;
+const processedSignatures = new WeakMap<HTMLElement, string>();
+const rowSignatures = new WeakMap<HTMLElement, string>();
 
-function directionFor(text: string): Direction {
-  if (settings.mode === "rtl") return "rtl";
+function getOverrideDirection(element?: HTMLElement): Direction | undefined {
+  if (!element) return undefined;
+  const override = element.getAttribute("data-kick-rtl-override");
+  const normalized = override?.trim().toLowerCase();
+  if (normalized === "rtl" || normalized === "ltr") return normalized;
+  const force = element.getAttribute("data-kick-rtl-force")?.toLowerCase();
+  if (force === "rtl" || force === "ltr") return force;
+  const original =
+    element.getAttribute(ORIGINAL_BIDI_ATTRIBUTE) ??
+    element.getAttribute("data-kick-bidi");
+  if (original === "rtl" || original === "ltr") return original;
+  return undefined;
+}
+function firstStrongDirection(text: string): Direction | undefined {
   for (const character of text) {
     if (RTL_STRONG_CHARACTER.test(character)) return "rtl";
     if (LTR_STRONG_CHARACTER.test(character)) return "ltr";
   }
-  return "ltr";
+  return undefined;
+}
+function detectSmartDirection(text: string): Direction {
+  const directionText = text
+    .replace(/https?:\/\/\S+/giu, " ")
+    .replace(/@\S+/gu, " ");
+  const firstStrong = firstStrongDirection(directionText);
+  let rtlScore = 0;
+  let ltrScore = 0;
+  for (const character of directionText) {
+    if (RTL_STRONG_CHARACTER.test(character)) rtlScore += 1;
+    else if (LTR_STRONG_CHARACTER.test(character)) ltrScore += 1;
+  }
+  if (rtlScore > ltrScore) return "rtl";
+  if (ltrScore > rtlScore) return "ltr";
+  return firstStrong ?? "ltr";
+}
+function directionFor(text: string, element?: HTMLElement): Direction {
+  const override = getOverrideDirection(element);
+  if (override) return override;
+  if (settings.mode === "rtl") return "rtl";
+  if (settings.mode === "ltr") return "ltr";
+  return detectSmartDirection(text);
 }
 function saveOriginalDirection(element: HTMLElement, attribute: string): void {
   if (!element.hasAttribute(attribute))
     element.setAttribute(attribute, element.getAttribute("dir") ?? "");
+}
+function saveOriginalBidi(element: HTMLElement): void {
+  if (!element.hasAttribute(ORIGINAL_BIDI_ATTRIBUTE))
+    element.setAttribute(
+      ORIGINAL_BIDI_ATTRIBUTE,
+      element.getAttribute("data-kick-bidi") ?? "",
+    );
 }
 function restoreDirection(element: HTMLElement, attribute: string): void {
   const original = element.getAttribute(attribute);
@@ -71,19 +124,30 @@ function restoreDirection(element: HTMLElement, attribute: string): void {
   else element.setAttribute("dir", original);
   element.removeAttribute(attribute);
 }
+function restoreBidi(element: HTMLElement): void {
+  const original = element.getAttribute(ORIGINAL_BIDI_ATTRIBUTE);
+  if (original === null) return;
+  if (original === "") element.removeAttribute("data-kick-bidi");
+  else element.setAttribute("data-kick-bidi", original);
+  element.removeAttribute(ORIGINAL_BIDI_ATTRIBUTE);
+}
 function restoreText(element: HTMLElement): void {
   restoreDirection(element, ORIGINAL_DIR_ATTRIBUTE);
+  restoreBidi(element);
   element.removeAttribute(PROCESSED_ATTRIBUTE);
 }
 function restoreCard(parts: MessageParts): void {
   parts.row.removeAttribute(CARD_ATTRIBUTE);
   parts.text.removeAttribute(BODY_ATTRIBUTE);
   parts.username.removeAttribute("data-kick-rtl-username");
+  parts.username.removeAttribute("data-kick-rtl-accent");
 }
 function applyText(element: HTMLElement, direction: Direction): void {
   saveOriginalDirection(element, ORIGINAL_DIR_ATTRIBUTE);
+  saveOriginalBidi(element);
   if (element.getAttribute("dir") !== direction)
     element.setAttribute("dir", direction);
+  element.setAttribute("data-kick-bidi", direction);
   element.setAttribute(PROCESSED_ATTRIBUTE, direction);
 }
 function accentFor(name: string): number {
@@ -126,13 +190,27 @@ function applyHighlights(element: HTMLElement): void {
   });
 }
 function applyMessage(parts: MessageParts): void {
+  const content = parts.text.textContent ?? "";
+  const rowSignature = `${parts.username.textContent ?? ""}\u0000${content}`;
+  const previousSignature = rowSignatures.get(parts.row);
+  if (previousSignature && previousSignature !== rowSignature)
+    parts.text.removeAttribute("data-kick-rtl-override");
+  rowSignatures.set(parts.row, rowSignature);
+
   if (!settings.enabled) {
     restoreText(parts.text);
     restoreCard(parts);
+    parts.row
+      .querySelector("[data-kick-rtl-override-control]")
+      ?.remove();
+    processedSignatures.delete(parts.text);
     clearHighlights(parts.text);
     return;
   }
-  const direction = directionFor(parts.text.textContent ?? "");
+  ensureOverrideControl(parts);
+  const signature = `${rowSignature}\u0000${settingsRevision}`;
+  if (processedSignatures.get(parts.text) === signature) return;
+  const direction = directionFor(content, parts.text);
   applyText(parts.text, direction);
   // Give each native Kick row a predictable two-line layout without moving nodes:
   // LTR identity header first, then an isolated body whose own direction is detected.
@@ -147,9 +225,41 @@ function applyMessage(parts: MessageParts): void {
   else parts.username.removeAttribute("data-kick-rtl-accent");
   parts.text.toggleAttribute(
     "data-kick-rtl-emote-only",
-    !parts.text.textContent?.trim() && Boolean(parts.text.querySelector("img")),
+    !content.trim() && Boolean(parts.text.querySelector("img")),
   );
   applyHighlights(parts.text);
+  processedSignatures.set(parts.text, signature);
+}
+function ensureOverrideControl(parts: MessageParts): void {
+  let control = parts.row.querySelector<HTMLButtonElement>(
+    "[data-kick-rtl-override-control]",
+  );
+  if (!control) {
+    control = document.createElement("button");
+    control.type = "button";
+    control.setAttribute("data-kick-rtl-override-control", "true");
+    control.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const current = parts.text.getAttribute("data-kick-rtl-override");
+      const next = current === null ? "rtl" : current === "rtl" ? "ltr" : null;
+      if (next) parts.text.setAttribute("data-kick-rtl-override", next);
+      else parts.text.removeAttribute("data-kick-rtl-override");
+      processedSignatures.delete(parts.text);
+      applyMessage(parts);
+    });
+    parts.row.append(control);
+  }
+  const override = parts.text.getAttribute("data-kick-rtl-override");
+  const label = override === "rtl" ? "RTL" : override === "ltr" ? "LTR" : "Auto";
+  control.textContent = label;
+  control.title =
+    override === "rtl"
+      ? "Override: RTL (click for LTR, then Auto)"
+      : override === "ltr"
+        ? "Override: LTR (click for Auto)"
+        : "Direction: Auto (click for RTL)";
+  control.setAttribute("aria-label", control.title);
 }
 function messagePartsFromButton(
   button: HTMLButtonElement,
@@ -167,14 +277,26 @@ function messagePartsFromButton(
   return { text, row, username: button };
 }
 function applyStandalone(element: HTMLElement): void {
-  if (!settings.enabled) return restoreText(element);
-  applyText(element, directionFor(element.textContent ?? ""));
-}
-function applyReply(button: HTMLButtonElement): void {
-  if (button.textContent?.includes("Replying to")) {
-    if (settings.enabled) button.setAttribute("data-kick-rtl-reply", "true");
-    else button.removeAttribute("data-kick-rtl-reply");
+  if (!settings.enabled) {
+    restoreText(element);
+    processedSignatures.delete(element);
+    return;
   }
+  const content = element.textContent ?? "";
+  const signature = `${content}\u0000${settingsRevision}`;
+  if (processedSignatures.get(element) === signature) return;
+  applyText(element, directionFor(content, element));
+  processedSignatures.set(element, signature);
+}
+function applyReply(element: HTMLElement): void {
+  const isReply =
+    element.textContent?.includes("Replying to") ||
+    element.matches('blockquote, [data-testid*="reply"], [data-testid*="quote"]');
+  if (isReply) {
+    if (settings.enabled)
+      element.setAttribute("data-kick-rtl-reply-preview", "true");
+    else element.removeAttribute("data-kick-rtl-reply-preview");
+  } else element.removeAttribute("data-kick-rtl-reply-preview");
 }
 function applyWithin(node: Node): void {
   if (!(node instanceof Element)) return;
@@ -204,15 +326,20 @@ function applyWithin(node: Node): void {
   candidates
     .filter((element) => !handledText.has(element))
     .forEach(applyStandalone);
-  const replyButtons: HTMLButtonElement[] = [];
-  if (node instanceof HTMLButtonElement && node.hasAttribute("aria-haspopup"))
-    replyButtons.push(node);
-  replyButtons.push(
-    ...node.querySelectorAll<HTMLButtonElement>(
-      'button[aria-haspopup="dialog"]',
+  const replyTargets: HTMLElement[] = [];
+  if (
+    node instanceof HTMLElement &&
+    node.matches(
+      'button[aria-haspopup], blockquote, [data-testid*="reply"], [data-testid*="quote"]',
+    )
+  )
+    replyTargets.push(node);
+  replyTargets.push(
+    ...node.querySelectorAll<HTMLElement>(
+      'button[aria-haspopup], blockquote, [data-testid*="reply"], [data-testid*="quote"]',
     ),
   );
-  replyButtons.forEach(applyReply);
+  replyTargets.forEach(applyReply);
 }
 function refresh(): void {
   if (!activeRoot) return;
@@ -244,6 +371,7 @@ function refresh(): void {
       "data-kick-rtl-hide-replies",
       !settings.showReplies,
     );
+    activeRoot.toggleAttribute("data-kick-rtl-debug", settings.debugMode);
   } else {
     activeRoot.removeAttribute("data-kick-rtl-font");
     activeRoot.removeAttribute("data-kick-rtl-density");
@@ -254,6 +382,7 @@ function refresh(): void {
     activeRoot.removeAttribute("data-kick-rtl-hide-timestamps");
     activeRoot.removeAttribute("data-kick-rtl-hide-badges");
     activeRoot.removeAttribute("data-kick-rtl-hide-replies");
+    activeRoot.removeAttribute("data-kick-rtl-debug");
   }
   applyWithin(activeRoot);
 }
@@ -266,15 +395,26 @@ function attach(root: HTMLElement): void {
   const pending = new Set<Node>();
   const flush = (): void => {
     queued = false;
-    pending.forEach(applyWithin);
+    pending.forEach((node) => {
+      if (node instanceof Text) {
+        const target = node.parentElement?.closest<HTMLElement>(
+          `${TEXT_TARGET_SELECTOR}, button[data-prevent-expand="true"]`,
+        );
+        applyWithin(target ?? node.parentElement ?? node);
+      } else {
+        applyWithin(node);
+      }
+    });
     pending.clear();
   };
   chatObserver = new MutationObserver((records) => {
     records.forEach((record) => {
-      if (record.type === "childList")
+      if (record.type === "childList") {
         record.addedNodes.forEach((node) => pending.add(node));
+        if (record.removedNodes.length) pending.add(record.target);
+      }
       if (record.type === "characterData" && record.target.parentElement)
-        pending.add(record.target.parentElement);
+        pending.add(record.target);
     });
     if (!queued && pending.size) {
       queued = true;
@@ -296,6 +436,7 @@ const pageObserver = new MutationObserver(() => {
 });
 chrome.storage.local.get(DEFAULT_SETTINGS, (stored: Partial<Settings>) => {
   settings = { ...DEFAULT_SETTINGS, ...stored };
+  settingsRevision++;
   discover();
   pageObserver.observe(document.documentElement, {
     childList: true,
@@ -324,5 +465,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     settings.userAccents = changes.userAccents.newValue as boolean;
   if (changes.highlight)
     settings.highlight = changes.highlight.newValue as string;
+  if (changes.debugMode)
+    settings.debugMode = changes.debugMode.newValue as boolean;
+  settingsRevision++;
   refresh();
 });

@@ -1,4 +1,7 @@
 declare const chrome: {
+  runtime: {
+    lastError?: { message?: string };
+  };
   storage: {
     local: {
       get(
@@ -17,6 +20,10 @@ declare const chrome: {
     };
   };
   tabs: {
-    reload(tabId?: number, reloadProperties?: { bypassCache?: boolean }): void;
+    reload(
+      tabId?: number,
+      reloadProperties?: { bypassCache?: boolean },
+      callback?: () => void,
+    ): void;
   };
 };
