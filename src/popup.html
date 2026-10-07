@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>راست‌چین Kick</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="hero">
+        <div class="logo" aria-hidden="true">K</div>
+        <div>
+          <p class="eyebrow">KICK CHAT</p>
+          <h1>راست‌چین فارسی</h1>
+        </div>
+        <span class="status" id="status">فعال</span>
+      </header>
+      <section class="card">
+        <div class="setting-row">
+          <div>
+            <h2>اصلاح جهت پیام‌ها</h2>
+            <p>فارسی، عربی، لینک، عدد و ایموجی</p>
+          </div>
+          <label class="switch" aria-label="فعال‌سازی اصلاح راست‌چین"
+            ><input id="enabled" type="checkbox" checked /><span
+              class="track"
+            ></span
+          ></label>
+        </div>
+        <label class="mode-label" for="mode">حالت نمایش</label>
+        <select id="mode">
+          <option value="smart">هوشمند — پیشنهاد شده</option>
+          <option value="rtl">اجبار راست‌چین همهٔ پیام‌ها</option>
+        </select>
+        <label class="mode-label" for="font">فونت پیام‌های فارسی</label>
+        <select id="font">
+          <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
+          <option value="arad">Arad</option>
+          <option value="iransans">IRANSans</option>
+          <option value="shabnam">Shabnam</option>
+          <option value="system">فونت اصلی Kick</option>
+        </select>
+        <label class="mode-label" for="inputFont">فونت کادر نوشتن پیام</label>
+        <select id="inputFont">
+          <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
+          <option value="arad">Arad</option>
+          <option value="iransans">IRANSans</option>
+          <option value="shabnam">Shabnam</option>
+          <option value="system">فونت اصلی Kick</option>
+        </select>
+        <div class="two-options">
+          <label
+            ><span>تراکم چت</span
+            ><select id="density">
+              <option value="compact">فشرده</option>
+              <option value="comfortable">راحت</option>
+            </select></label
+          ><label
+            ><span>ظاهر کارت‌ها</span
+            ><select id="surface">
+              <option value="soft">نرم</option>
+              <option value="midnight">تیره</option>
+            </select></label
+          >
+        </div>
+        <label class="mode-label" for="popupFont">فونت پنل افزونه</label>
+        <select id="popupFont">
+          <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
+          <option value="arad">Arad</option>
+          <option value="iransans">IRANSans</option>
+          <option value="shabnam">Shabnam</option>
+          <option value="system">سیستم</option>
+        </select>
+      </section>
+      <section class="hint">
+        <span aria-hidden="true">↻</span>
+        <p>پس از تغییر تنظیمات، صفحهٔ Kick را تازه کنید.</p>
+      </section>
+      <button id="reload" class="reload" type="button">
+        تازه‌سازی صفحهٔ Kick
+      </button>
+      <p class="footer">بدون تغییر رنگ، ظاهر یا چیدمان Kick</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
