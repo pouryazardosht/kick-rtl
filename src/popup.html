@@ -30,15 +30,20 @@
         </div>
         <label class="mode-label" for="mode">حالت نمایش</label>
         <select id="mode">
-          <option value="smart">هوشمند — پیشنهاد شده</option>
+          <option value="smart">هوشمند — تشخیص خودکار</option>
           <option value="rtl">اجبار راست‌چین همهٔ پیام‌ها</option>
+          <option value="ltr">اجبار چپ‌چین همهٔ پیام‌ها</option>
         </select>
+        <p class="field-hint">برای هر پیام هم می‌توانید دکمهٔ Auto / RTL / LTR را بزنید.</p>
         <label class="mode-label" for="layout">چیدمان کارت‌ها</label>
         <select id="layout">
           <option value="card">شیشه‌ای — پیش‌فرض</option>
           <option value="imessage">فشرده — شبیه iMessage</option>
           <option value="discord">تخت — شبیه Discord</option>
         </select>
+      </section>
+      <section class="card">
+        <h2 class="section-title">نمایش چت</h2>
         <label class="mode-label" for="font">فونت پیام‌های فارسی</label>
         <select id="font">
           <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
@@ -98,6 +103,8 @@
             value="14"
           />
         </div>
+      </section>
+      <section class="card">
         <p class="section-title">نمایش در چت</p>
         <div class="toggle-grid">
           <label class="mini-toggle"
@@ -120,6 +127,11 @@
               >رنگ نام کاربری</span
             ></label
           >
+          <label class="mini-toggle"
+            ><input id="debugMode" type="checkbox" /><span
+              >عیب‌یابی جهت</span
+            ></label
+          >
         </div>
         <label class="mode-label" for="highlight">جستجو و هایلایت کلمه</label>
         <input
@@ -134,6 +146,9 @@
           در نوار بالای چت هم می‌توانید جستجو کنید؛ ی و ک عربی/فارسی یکسان
           می‌شوند.
         </p>
+      </section>
+      <section class="card">
+        <h2 class="section-title">پنل افزونه</h2>
         <label class="mode-label" for="popupFont">فونت پنل افزونه</label>
         <select id="popupFont">
           <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>

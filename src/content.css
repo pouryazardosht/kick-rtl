@@ -1,8 +1,14 @@
-/* Keep the message list in a low layer; composer/emotes stay above (fixes overlap). */
+/* Keep the message list below the composer and leave room to scroll its final rows. */
 #chatroom-messages {
   position: relative;
   z-index: 0;
   isolation: isolate;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+  padding-bottom: max(5rem, env(safe-area-inset-bottom)) !important;
+  scroll-padding-bottom: 5rem;
 }
 #chatroom:has(#chatroom-messages) {
   position: relative;
@@ -17,14 +23,17 @@
   position: relative;
   z-index: 41;
 }
+#chatroom-messages [data-kick-rtl-bidi] {
+  unicode-bidi: plaintext;
+}
 
 /* Two-line cards. DOM order remains native: time, identity, colon, message. */
 #chatroom-messages [data-kick-rtl-card] {
+  position: relative;
   display: grid !important;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 0 0.28rem;
-  position: relative;
   z-index: 0;
   margin-block: 0.12rem;
   padding: 0.3rem 0.42rem 0.36rem !important;
@@ -76,9 +85,47 @@
   direction: ltr;
   unicode-bidi: isolate;
 }
+#chatroom-messages [data-kick-rtl-body] a,
+#chatroom-messages [data-kick-rtl-body] [data-testid*="mention"],
+#chatroom-messages [data-kick-rtl-body] [class*="mention" i] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+#chatroom-messages [data-kick-rtl-override-control] {
+  position: absolute;
+  z-index: 2;
+  top: 2px;
+  right: 3px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 5px;
+  padding: 1px 4px;
+  background: rgb(15 17 20 / 0.92);
+  color: #d7d6dd;
+  font: 700 8px/1.5 Arial, sans-serif;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+#chatroom-messages [data-kick-rtl-card]:hover
+  [data-kick-rtl-override-control],
+#chatroom-messages [data-kick-rtl-card]:focus-within
+  [data-kick-rtl-override-control] {
+  opacity: 1;
+}
+#chatroom-messages [data-kick-rtl-override-control]:focus-visible {
+  outline: 2px solid #a5f78b;
+  outline-offset: 1px;
+  opacity: 1;
+}
+@media (hover: none) {
+  #chatroom-messages [data-kick-rtl-override-control] {
+    opacity: 0.8;
+  }
+}
 
 /* Reply preview gets a compact, matching glass strip above its reply card. */
-#chatroom-messages button[data-kick-rtl-reply] {
+#chatroom-messages
+  :is(button, blockquote, [data-testid*="reply"], [data-testid*="quote"])[data-kick-rtl-reply-preview] {
   position: relative;
   z-index: 0;
   display: block;
@@ -95,12 +142,16 @@
   font-family: inherit;
   box-shadow: inset 0 1px rgb(255 255 255 / 0.025);
 }
-#chatroom-messages button[data-kick-rtl-reply] > span {
+#chatroom-messages [data-kick-rtl-reply-preview] > span {
   unicode-bidi: plaintext;
 }
-#chatroom-messages button[data-kick-rtl-reply] > span > span:first-child {
+#chatroom-messages [data-kick-rtl-reply-preview] > span > span:first-child {
   color: rgb(255 255 255 / 0.8);
   font-weight: 700;
+}
+#chatroom-messages[data-kick-rtl-hide-replies]
+  [data-kick-rtl-reply-preview] {
+  display: none !important;
 }
 
 /* Body fills the second line and is the only part whose direction changes. */
@@ -276,10 +327,6 @@
 #chatroom-messages[data-kick-rtl-hide-badges] [data-kick-rtl-card] > div > div {
   display: none !important;
 }
-#chatroom-messages[data-kick-rtl-hide-replies] button[data-kick-rtl-reply] {
-  display: none !important;
-}
-
 /* Stable, gentle colours derived from each username. */
 #chatroom-messages [data-kick-rtl-accent="0"] {
   color: #8ee6ff !important;
@@ -305,6 +352,10 @@
   border-radius: 0.25em;
   background: rgb(83 252 24 / 0.22);
   color: inherit;
+}
+#chatroom-messages[data-kick-rtl-debug] [data-kick-rtl-bidi] {
+  outline: 1px dashed #f6cc65;
+  outline-offset: 2px;
 }
 
 #chatroom-messages [data-kick-rtl-card] > :first-child {
