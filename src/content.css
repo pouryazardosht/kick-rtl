@@ -1,9 +1,31 @@
+/* Keep the message list in a low layer; composer/emotes stay above (fixes overlap). */
+#chatroom-messages {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+#chatroom:has(#chatroom-messages) {
+  position: relative;
+  z-index: 0;
+}
+#chatroom:has(#chatroom-messages) > :has(#chat-input-wrapper),
+#chat-input-wrapper {
+  position: relative;
+  z-index: 40;
+}
+#chat-input-wrapper + div {
+  position: relative;
+  z-index: 41;
+}
+
 /* Two-line cards. DOM order remains native: time, identity, colon, message. */
 #chatroom-messages [data-kick-rtl-card] {
   display: grid !important;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 0 0.28rem;
+  position: relative;
+  z-index: 0;
   margin-block: 0.12rem;
   padding: 0.3rem 0.42rem 0.36rem !important;
   border: 1px solid rgb(255 255 255 / 0.075);
@@ -17,6 +39,10 @@
     0 1px 0 rgb(255 255 255 / 0.025) inset,
     0 3px 12px rgb(0 0 0 / 0.1);
   backdrop-filter: blur(10px) saturate(120%);
+}
+#chatroom-messages [data-kick-rtl-card]:hover,
+#chatroom-messages [data-kick-rtl-card]:focus-within {
+  z-index: 1;
 }
 
 #chatroom-messages[data-kick-rtl-density="comfortable"] [data-kick-rtl-card] {
@@ -53,6 +79,8 @@
 
 /* Reply preview gets a compact, matching glass strip above its reply card. */
 #chatroom-messages button[data-kick-rtl-reply] {
+  position: relative;
+  z-index: 0;
   display: block;
   width: calc(100% - 1rem) !important;
   margin: 0.12rem 0.5rem 0.16rem;
@@ -64,6 +92,7 @@
   color: rgb(255 255 255 / 0.56) !important;
   text-align: left;
   font-size: 0.86em;
+  font-family: inherit;
   box-shadow: inset 0 1px rgb(255 255 255 / 0.025);
 }
 #chatroom-messages button[data-kick-rtl-reply] > span {
@@ -79,7 +108,7 @@
   grid-column: 1 / -1;
   display: block;
   width: 100%;
-  max-width: 100%;
+  max-width: var(--kick-rtl-bubble-max, 100%);
   box-sizing: border-box;
   margin-top: 0.16rem;
   padding: 0.32rem 0.52rem;
@@ -99,12 +128,143 @@
   direction: ltr;
   text-align: left;
 }
-#chatroom-messages [data-kick-rtl-emote-only] {
-  min-width: 3rem;
-  padding: 0.22rem 0.35rem;
+
+/* iMessage-style: shrink-wrapped bubbles aligned by direction. */
+#chatroom-messages[data-kick-rtl-layout="imessage"] [data-kick-rtl-card] {
+  padding: 0.18rem 0.32rem 0.24rem !important;
+  margin-block: 0.06rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
-#chatroom-messages [data-kick-rtl-emote-only] img {
+#chatroom-messages[data-kick-rtl-layout="imessage"] [data-kick-rtl-body] {
+  width: fit-content;
+  max-width: var(--kick-rtl-bubble-max, 88%);
+  margin-top: 0.08rem;
+  padding: 0.38rem 0.62rem;
+  border-radius: 1.05rem;
+  border-color: rgb(255 255 255 / 0.04);
+  background: rgb(255 255 255 / 0.1);
+}
+#chatroom-messages[data-kick-rtl-layout="imessage"] [data-kick-rtl-body="rtl"] {
+  justify-self: end;
+  border-bottom-right-radius: 0.28rem;
+  background: linear-gradient(145deg, rgb(83 252 24 / 0.22), rgb(83 252 24 / 0.1));
+}
+#chatroom-messages[data-kick-rtl-layout="imessage"] [data-kick-rtl-body="ltr"] {
+  justify-self: start;
+  border-bottom-left-radius: 0.28rem;
+  background: rgb(255 255 255 / 0.09);
+}
+
+/* Discord-style: flat rows, username-led, minimal bubble chrome. */
+#chatroom-messages[data-kick-rtl-layout="discord"] [data-kick-rtl-card] {
+  padding: 0.22rem 0.38rem 0.28rem !important;
+  margin-block: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  border-top: 1px solid rgb(255 255 255 / 0.035);
+}
+#chatroom-messages[data-kick-rtl-layout="discord"] [data-kick-rtl-card]:hover {
+  background: rgb(255 255 255 / 0.028);
+}
+#chatroom-messages[data-kick-rtl-layout="discord"] [data-kick-rtl-username] {
+  font-weight: 700;
+  font-size: 0.95em;
+}
+#chatroom-messages[data-kick-rtl-layout="discord"] [data-kick-rtl-body] {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0.06rem;
+  padding: 0.06rem 0 0.12rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#chatroom-messages [data-kick-rtl-emote-only] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.18rem;
+  min-width: 3rem;
+  min-height: 2.35rem;
+  padding: 0.28rem 0.42rem;
+  justify-content: center;
+}
+#chatroom-messages [data-kick-rtl-emote-only] img,
+#chatroom-messages [data-kick-rtl-emote-only] svg {
   vertical-align: middle;
+  transform: scale(1.06);
+  transform-origin: center;
+}
+#chatroom-messages[data-kick-rtl-layout="imessage"] [data-kick-rtl-emote-only] {
+  padding: 0.35rem 0.55rem;
+  border-radius: 1.2rem;
+  background: rgb(255 255 255 / 0.08);
+}
+#chatroom-messages[data-kick-rtl-layout="discord"] [data-kick-rtl-emote-only] {
+  justify-content: flex-start;
+  min-height: auto;
+  padding: 0.12rem 0;
+}
+#chatroom-messages [data-kick-rtl-emote-only][data-kick-rtl-emote-count="1"] img,
+#chatroom-messages [data-kick-rtl-emote-only][data-kick-rtl-emote-count="1"] svg {
+  transform: scale(1.22);
+}
+
+/* In-chat keyword search (sibling of #chatroom-messages, not inside the virtual list). */
+#kick-rtl-search-root {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  flex-shrink: 0;
+  margin: 0.35rem 0.45rem 0.42rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 0.75rem;
+  background: rgb(0 0 0 / 0.82);
+  font-family: var(--kick-rtl-font-family, inherit);
+}
+#kick-rtl-search-root .kick-rtl-search-label {
+  color: rgb(255 255 255 / 0.72);
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+#kick-rtl-search-root .kick-rtl-search-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0.55rem;
+  padding: 0.35rem 0.55rem;
+  background: rgb(255 255 255 / 0.06);
+  color: #f5f5f7;
+  font: inherit;
+  font-size: 0.82rem;
+  direction: auto;
+  unicode-bidi: plaintext;
+}
+#kick-rtl-search-root .kick-rtl-search-input:focus {
+  outline: 2px solid rgb(83 252 24 / 0.45);
+  outline-offset: 1px;
+  border-color: rgb(83 252 24 / 0.35);
+}
+#kick-rtl-search-root .kick-rtl-search-count {
+  color: rgb(143 240 210 / 0.95);
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 /* Optional visibility controls. */
@@ -161,39 +321,32 @@
 
 /* Reuse Kick's native Reply action as the left-side hover toolbox for this card. */
 #chatroom-messages [data-kick-rtl-card] ~ div:has(button[aria-label="Reply"]) {
+  z-index: 2 !important;
   left: 0.8rem !important;
   right: auto !important;
   bottom: -0.45rem !important;
 }
 
-/* Local fonts only—each option falls back cleanly if that font is not installed. */
-#chatroom-messages[data-kick-rtl-font="vazirmatn"] [data-kick-rtl-card] {
-  font-family: Vazirmatn, Tahoma, sans-serif;
+/* Extension chat font on messages, timestamps, replies, and search (not Kick defaults). */
+#chatroom-messages[data-kick-rtl-font] {
+  font-family: var(--kick-rtl-font-family, inherit);
 }
-#chatroom-messages[data-kick-rtl-font="arad"] [data-kick-rtl-card] {
-  font-family: Arad, "B Arad", Tahoma, sans-serif;
+html[data-kick-rtl-active] #chatroom-messages[data-kick-rtl-font] :is(
+  [data-kick-rtl-card],
+  [data-kick-rtl-card] button,
+  [data-kick-rtl-card] span,
+  button[data-kick-rtl-reply],
+  button[data-kick-rtl-reply] span
+) {
+  font-family: var(--kick-rtl-font-family, inherit) !important;
 }
-#chatroom-messages[data-kick-rtl-font="iransans"] [data-kick-rtl-card] {
-  font-family: IRANSans, "IRANSansX", Tahoma, sans-serif;
+#kick-rtl-search-root,
+#kick-rtl-search-root .kick-rtl-search-input {
+  font-family: var(--kick-rtl-font-family, inherit) !important;
 }
-#chatroom-messages[data-kick-rtl-font="shabnam"] [data-kick-rtl-card] {
-  font-family: Shabnam, Tahoma, sans-serif;
-}
-html[data-kick-rtl-input-font="vazirmatn"]
-  #chat-input-wrapper
-  [data-input="true"] {
-  font-family: Vazirmatn, Tahoma, sans-serif !important;
-}
-html[data-kick-rtl-input-font="arad"] #chat-input-wrapper [data-input="true"] {
-  font-family: Arad, "B Arad", Tahoma, sans-serif !important;
-}
-html[data-kick-rtl-input-font="iransans"]
-  #chat-input-wrapper
-  [data-input="true"] {
-  font-family: IRANSans, "IRANSansX", Tahoma, sans-serif !important;
-}
-html[data-kick-rtl-input-font="shabnam"]
-  #chat-input-wrapper
-  [data-input="true"] {
-  font-family: Shabnam, Tahoma, sans-serif !important;
+
+html[data-kick-rtl-active] #chat-input-wrapper,
+html[data-kick-rtl-active] #chat-input-wrapper [data-input="true"],
+html[data-kick-rtl-active] #chat-input-wrapper [data-placeholder="true"] {
+  font-family: var(--kick-rtl-input-font-family, inherit) !important;
 }

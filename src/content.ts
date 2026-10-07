@@ -13,6 +13,7 @@ type Mode = "smart" | "rtl";
 type Font = "vazirmatn" | "arad" | "iransans" | "shabnam" | "system";
 type Density = "compact" | "comfortable";
 type Surface = "soft" | "midnight";
+type Layout = "card" | "imessage" | "discord";
 interface Settings {
   enabled: boolean;
   mode: Mode;
@@ -20,6 +21,7 @@ interface Settings {
   inputFont: Font;
   density: Density;
   surface: Surface;
+  layout: Layout;
   bubbleWidth: number;
   fontSize: number;
   showTimestamps: boolean;
@@ -40,6 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   inputFont: "vazirmatn",
   density: "compact",
   surface: "soft",
+  layout: "card",
   bubbleWidth: 100,
   fontSize: 14,
   showTimestamps: true,
@@ -51,6 +54,44 @@ const DEFAULT_SETTINGS: Settings = {
 let settings = { ...DEFAULT_SETTINGS };
 let chatObserver: MutationObserver | undefined;
 let activeRoot: HTMLElement | undefined;
+let searchRoot: HTMLElement | undefined;
+let searchInput: HTMLInputElement | undefined;
+let searchCountElement: HTMLElement | undefined;
+let searchWriteTimer: ReturnType<typeof setTimeout> | undefined;
+
+const SEARCH_ROOT_ID = "kick-rtl-search-root";
+
+function fontFamilyStack(font: Font): string | undefined {
+  switch (font) {
+    case "vazirmatn":
+      return "Vazirmatn, Tahoma, sans-serif";
+    case "arad":
+      return 'Arad, "B Arad", Tahoma, sans-serif';
+    case "iransans":
+      return 'IRANSans, "IRANSansX", Tahoma, sans-serif';
+    case "shabnam":
+      return "Shabnam, Tahoma, sans-serif";
+    default:
+      return undefined;
+  }
+}
+function chatChromeHost(): HTMLElement | undefined {
+  if (!activeRoot) return undefined;
+  return (
+    activeRoot.closest<HTMLElement>("#chatroom") ??
+    activeRoot.parentElement ??
+    undefined
+  );
+}
+
+function normalizeForSearch(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/\u064A/gu, "\u06CC")
+    .replace(/\u0649/gu, "\u06CC")
+    .replace(/\u0643/gu, "\u06A9")
+    .toLocaleLowerCase("fa");
+}
 
 function directionFor(text: string): Direction {
   if (settings.mode === "rtl") return "rtl";
@@ -99,11 +140,31 @@ function clearHighlights(element: HTMLElement): void {
       mark.replaceWith(document.createTextNode(mark.textContent ?? "")),
     );
 }
+function highlightMatchesInText(value: string, query: string): Node[] {
+  const needle = normalizeForSearch(query);
+  if (!needle) return [document.createTextNode(value)];
+  const haystack = normalizeForSearch(value);
+  const nodes: Node[] = [];
+  let cursor = 0;
+  while (cursor < value.length) {
+    const index = haystack.indexOf(needle, cursor);
+    if (index < 0) {
+      nodes.push(document.createTextNode(value.slice(cursor)));
+      break;
+    }
+    if (index > cursor) nodes.push(document.createTextNode(value.slice(cursor, index)));
+    const mark = document.createElement("mark");
+    mark.dataset.kickRtlHighlight = "true";
+    mark.textContent = value.slice(index, index + query.length);
+    nodes.push(mark);
+    cursor = index + query.length;
+  }
+  return nodes;
+}
 function applyHighlights(element: HTMLElement): void {
   clearHighlights(element);
   const query = settings.highlight.trim();
   if (!query) return;
-  const needle = query.toLocaleLowerCase();
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) =>
       node.parentElement?.closest("mark[data-kick-rtl-highlight]")
@@ -114,16 +175,75 @@ function applyHighlights(element: HTMLElement): void {
   while (walker.nextNode()) nodes.push(walker.currentNode as Text);
   nodes.forEach((node) => {
     const value = node.data;
-    const index = value.toLocaleLowerCase().indexOf(needle);
-    if (index < 0) return;
+    if (!normalizeForSearch(value).includes(normalizeForSearch(query))) return;
     const fragment = document.createDocumentFragment();
-    fragment.append(value.slice(0, index));
-    const mark = document.createElement("mark");
-    mark.dataset.kickRtlHighlight = "true";
-    mark.textContent = value.slice(index, index + query.length);
-    fragment.append(mark, value.slice(index + query.length));
+    highlightMatchesInText(value, query).forEach((part) => fragment.append(part));
     node.replaceWith(fragment);
   });
+}
+function countHighlights(root: HTMLElement): number {
+  return root.querySelectorAll("mark[data-kick-rtl-highlight]").length;
+}
+function updateSearchCount(): void {
+  if (!searchCountElement || !activeRoot) return;
+  const query = settings.highlight.trim();
+  if (!query) {
+    searchCountElement.textContent = "";
+    return;
+  }
+  const total = countHighlights(activeRoot);
+  searchCountElement.textContent = total
+    ? `${total.toLocaleString("fa-IR")} مورد`
+    : "موردی نیست";
+}
+function removeSearchBar(): void {
+  searchRoot?.remove();
+  searchRoot = undefined;
+  searchInput = undefined;
+  searchCountElement = undefined;
+}
+function ensureSearchBar(): void {
+  if (!activeRoot || !settings.enabled) {
+    removeSearchBar();
+    return;
+  }
+  const host = chatChromeHost();
+  if (!host) return;
+  if (!searchRoot) {
+    searchRoot = document.createElement("div");
+    searchRoot.id = SEARCH_ROOT_ID;
+    const label = document.createElement("label");
+    label.className = "kick-rtl-search-label";
+    label.textContent = "جستجو";
+    searchInput = document.createElement("input");
+    searchInput.type = "search";
+    searchInput.className = "kick-rtl-search-input";
+    searchInput.placeholder = "کلمهٔ فارسی یا انگلیسی…";
+    searchInput.spellcheck = false;
+    searchInput.autocomplete = "off";
+    searchCountElement = document.createElement("span");
+    searchCountElement.className = "kick-rtl-search-count";
+    searchInput.addEventListener("input", () => {
+      settings.highlight = searchInput!.value;
+      refreshHighlightsOnly();
+      if (searchWriteTimer) clearTimeout(searchWriteTimer);
+      searchWriteTimer = setTimeout(
+        () => chrome.storage.local.set({ highlight: settings.highlight }),
+        280,
+      );
+    });
+    searchRoot.append(label, searchInput, searchCountElement);
+  }
+  if (searchRoot.parentElement !== host) host.prepend(searchRoot);
+  if (searchInput && searchInput.value !== settings.highlight)
+    searchInput.value = settings.highlight;
+}
+function refreshHighlightsOnly(): void {
+  if (!activeRoot) return;
+  activeRoot
+    .querySelectorAll<HTMLElement>(`[${BODY_ATTRIBUTE}]`)
+    .forEach((body) => applyHighlights(body));
+  updateSearchCount();
 }
 function applyMessage(parts: MessageParts): void {
   if (!settings.enabled) {
@@ -145,10 +265,16 @@ function applyMessage(parts: MessageParts): void {
       String(accentFor(parts.username.textContent ?? "")),
     );
   else parts.username.removeAttribute("data-kick-rtl-accent");
-  parts.text.toggleAttribute(
-    "data-kick-rtl-emote-only",
-    !parts.text.textContent?.trim() && Boolean(parts.text.querySelector("img")),
-  );
+  const emoteImages = parts.text.querySelectorAll("img, svg").length;
+  const emoteOnly =
+    !parts.text.textContent?.trim() && emoteImages > 0;
+  parts.text.toggleAttribute("data-kick-rtl-emote-only", emoteOnly);
+  if (emoteOnly)
+    parts.text.setAttribute(
+      "data-kick-rtl-emote-count",
+      String(Math.min(99, emoteImages)),
+    );
+  else parts.text.removeAttribute("data-kick-rtl-emote-count");
   applyHighlights(parts.text);
 }
 function messagePartsFromButton(
@@ -217,13 +343,41 @@ function applyWithin(node: Node): void {
 function refresh(): void {
   if (!activeRoot) return;
   if (settings.enabled) {
+    document.documentElement.setAttribute("data-kick-rtl-active", "true");
+    document.documentElement.setAttribute(
+      "data-kick-rtl-chat-font",
+      settings.font,
+    );
     activeRoot.setAttribute("data-kick-rtl-font", settings.font);
     activeRoot.setAttribute("data-kick-rtl-density", settings.density);
     activeRoot.setAttribute("data-kick-rtl-surface", settings.surface);
+    activeRoot.setAttribute("data-kick-rtl-layout", settings.layout);
+    ensureSearchBar();
     document.documentElement.setAttribute(
       "data-kick-rtl-input-font",
       settings.inputFont,
     );
+    const chatStack = fontFamilyStack(settings.font);
+    if (chatStack) {
+      activeRoot.style.setProperty("--kick-rtl-font-family", chatStack);
+      document.documentElement.style.setProperty(
+        "--kick-rtl-font-family",
+        chatStack,
+      );
+    } else {
+      activeRoot.style.removeProperty("--kick-rtl-font-family");
+      document.documentElement.style.removeProperty("--kick-rtl-font-family");
+    }
+    const inputStack = fontFamilyStack(settings.inputFont);
+    if (inputStack)
+      document.documentElement.style.setProperty(
+        "--kick-rtl-input-font-family",
+        inputStack,
+      );
+    else
+      document.documentElement.style.removeProperty(
+        "--kick-rtl-input-font-family",
+      );
     activeRoot.style.setProperty(
       "--kick-rtl-bubble-max",
       `${Math.min(100, Math.max(50, settings.bubbleWidth))}%`,
@@ -245,17 +399,25 @@ function refresh(): void {
       !settings.showReplies,
     );
   } else {
+    document.documentElement.removeAttribute("data-kick-rtl-active");
+    document.documentElement.removeAttribute("data-kick-rtl-chat-font");
     activeRoot.removeAttribute("data-kick-rtl-font");
     activeRoot.removeAttribute("data-kick-rtl-density");
     activeRoot.removeAttribute("data-kick-rtl-surface");
+    activeRoot.removeAttribute("data-kick-rtl-layout");
     document.documentElement.removeAttribute("data-kick-rtl-input-font");
+    document.documentElement.style.removeProperty("--kick-rtl-input-font-family");
+    document.documentElement.style.removeProperty("--kick-rtl-font-family");
+    removeSearchBar();
     activeRoot.style.removeProperty("--kick-rtl-bubble-max");
+    activeRoot.style.removeProperty("--kick-rtl-font-family");
     activeRoot.style.removeProperty("--kick-rtl-font-size");
     activeRoot.removeAttribute("data-kick-rtl-hide-timestamps");
     activeRoot.removeAttribute("data-kick-rtl-hide-badges");
     activeRoot.removeAttribute("data-kick-rtl-hide-replies");
   }
   applyWithin(activeRoot);
+  updateSearchCount();
 }
 function attach(root: HTMLElement): void {
   if (activeRoot === root) return;
@@ -311,6 +473,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     settings.inputFont = changes.inputFont.newValue as Font;
   if (changes.density) settings.density = changes.density.newValue as Density;
   if (changes.surface) settings.surface = changes.surface.newValue as Surface;
+  if (changes.layout) settings.layout = changes.layout.newValue as Layout;
   if (changes.bubbleWidth)
     settings.bubbleWidth = changes.bubbleWidth.newValue as number;
   if (changes.fontSize) settings.fontSize = changes.fontSize.newValue as number;
@@ -322,7 +485,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     settings.showReplies = changes.showReplies.newValue as boolean;
   if (changes.userAccents)
     settings.userAccents = changes.userAccents.newValue as boolean;
-  if (changes.highlight)
+  if (changes.highlight !== undefined)
     settings.highlight = changes.highlight.newValue as string;
   refresh();
 });
