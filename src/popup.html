@@ -35,6 +35,12 @@
           <option value="ltr">اجبار چپ‌چین همهٔ پیام‌ها</option>
         </select>
         <p class="field-hint">برای هر پیام هم می‌توانید دکمهٔ Auto / RTL / LTR را بزنید.</p>
+        <label class="mode-label" for="layout">چیدمان کارت‌ها</label>
+        <select id="layout">
+          <option value="card">شیشه‌ای — پیش‌فرض</option>
+          <option value="imessage">فشرده — شبیه iMessage</option>
+          <option value="discord">تخت — شبیه Discord</option>
+        </select>
       </section>
       <section class="card">
         <h2 class="section-title">نمایش چت</h2>
@@ -69,22 +75,77 @@
             </select></label
           >
         </div>
-        <label class="mode-label" for="bubbleWidth">عرض پیام‌ها <output id="bubbleWidthValue">100%</output></label>
-        <input id="bubbleWidth" class="range" type="range" min="50" max="100" step="5" value="100" />
-        <label class="mode-label" for="fontSize">اندازهٔ متن <output id="fontSizeValue">14px</output></label>
-        <input id="fontSize" class="range" type="range" min="11" max="22" step="1" value="14" />
+        <div class="range-row">
+          <label class="range-label" for="bubbleWidth"
+            ><span>عرض حباب پیام</span
+            ><output id="bubbleWidthValue">۱۰۰٪</output></label
+          >
+          <input
+            id="bubbleWidth"
+            type="range"
+            min="50"
+            max="100"
+            step="1"
+            value="100"
+          />
+        </div>
+        <div class="range-row">
+          <label class="range-label" for="fontSize"
+            ><span>اندازهٔ متن پیام</span
+            ><output id="fontSizeValue">۱۴px</output></label
+          >
+          <input
+            id="fontSize"
+            type="range"
+            min="11"
+            max="22"
+            step="1"
+            value="14"
+          />
+        </div>
       </section>
       <section class="card">
-        <h2 class="section-title">رفتار و دسترس‌پذیری</h2>
-        <div class="check-options">
-          <label><input id="showTimestamps" type="checkbox" checked /><span>نمایش زمان پیام</span></label>
-          <label><input id="showBadges" type="checkbox" checked /><span>نمایش نشان‌ها</span></label>
-          <label><input id="showReplies" type="checkbox" checked /><span>نمایش پیش‌نمایش پاسخ</span></label>
-          <label><input id="userAccents" type="checkbox" checked /><span>رنگ ثابت نام کاربران</span></label>
-          <label><input id="debugMode" type="checkbox" /><span>حالت عیب‌یابی جهت متن</span></label>
+        <p class="section-title">نمایش در چت</p>
+        <div class="toggle-grid">
+          <label class="mini-toggle"
+            ><input id="showTimestamps" type="checkbox" checked /><span
+              >زمان</span
+            ></label
+          >
+          <label class="mini-toggle"
+            ><input id="showBadges" type="checkbox" checked /><span
+              >نشان‌ها</span
+            ></label
+          >
+          <label class="mini-toggle"
+            ><input id="showReplies" type="checkbox" checked /><span
+              >پیش‌نمایش پاسخ</span
+            ></label
+          >
+          <label class="mini-toggle"
+            ><input id="userAccents" type="checkbox" checked /><span
+              >رنگ نام کاربری</span
+            ></label
+          >
+          <label class="mini-toggle"
+            ><input id="debugMode" type="checkbox" /><span
+              >عیب‌یابی جهت</span
+            ></label
+          >
         </div>
-        <label class="mode-label" for="highlight">برجسته‌کردن واژه در چت</label>
-        <input id="highlight" class="text-input" type="text" maxlength="40" placeholder="اختیاری" />
+        <label class="mode-label" for="highlight">جستجو و هایلایت کلمه</label>
+        <input
+          id="highlight"
+          class="text-input"
+          type="search"
+          placeholder="مثلاً سلام یا kick"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p class="field-hint">
+          در نوار بالای چت هم می‌توانید جستجو کنید؛ ی و ک عربی/فارسی یکسان
+          می‌شوند.
+        </p>
       </section>
       <section class="card">
         <h2 class="section-title">پنل افزونه</h2>
@@ -99,12 +160,12 @@
       </section>
       <section class="hint">
         <span aria-hidden="true">↻</span>
-        <p>پس از تغییر تنظیمات، صفحهٔ Kick را تازه کنید.</p>
+        <p>بیشتر تنظیمات بلافاصله اعمال می‌شوند؛ در صورت نیاز صفحه را تازه کنید.</p>
       </section>
       <button id="reload" class="reload" type="button">
         تازه‌سازی صفحهٔ Kick
       </button>
-      <p class="footer">تنظیمات فقط روی نمایش پیام‌های چت اثر می‌گذارند</p>
+      <p class="footer">RTL، چیدمان و جستجو فقط روی چت Kick</p>
     </main>
     <script src="popup.js"></script>
   </body>
