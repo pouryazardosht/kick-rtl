@@ -216,7 +216,8 @@ function highlightMatchesInText(value: string, query: string): Node[] {
       nodes.push(document.createTextNode(value.slice(cursor)));
       break;
     }
-    if (index > cursor) nodes.push(document.createTextNode(value.slice(cursor, index)));
+    if (index > cursor)
+      nodes.push(document.createTextNode(value.slice(cursor, index)));
     const mark = document.createElement("mark");
     mark.dataset.kickRtlHighlight = "true";
     mark.textContent = value.slice(index, index + query.length);
@@ -241,7 +242,9 @@ function applyHighlights(element: HTMLElement): void {
     const value = node.data;
     if (!normalizeForSearch(value).includes(normalizeForSearch(query))) return;
     const fragment = document.createDocumentFragment();
-    highlightMatchesInText(value, query).forEach((part) => fragment.append(part));
+    highlightMatchesInText(value, query).forEach((part) =>
+      fragment.append(part),
+    );
     node.replaceWith(fragment);
   });
 }
@@ -265,6 +268,34 @@ function removeSearchBar(): void {
   searchRoot = undefined;
   searchInput = undefined;
   searchCountElement = undefined;
+}
+function syncComposerInset(): void {
+  const root =
+    activeRoot ?? document.querySelector<HTMLElement>(CHAT_ROOT_SELECTOR);
+  if (!root) return;
+  const host = chatChromeHost() ?? root.parentElement;
+  const composer = host?.querySelector<HTMLElement>("#chat-input-wrapper");
+  const composerHeight = composer
+    ? Math.ceil(composer.getBoundingClientRect().height)
+    : 0;
+  const rootRect = root.getBoundingClientRect();
+  const composerRect = composer?.getBoundingClientRect();
+  const safeTopSpace = composerRect && composerRect.top < rootRect.top + 8 ? composerHeight + 12 : 0;
+  const safeBottomSpace = composerRect && composerRect.bottom > rootRect.bottom - 8 ? composerHeight + 12 : 0;
+  root.style.setProperty("--kick-rtl-composer-top-space", `${safeTopSpace}px`);
+  root.style.setProperty("--kick-rtl-composer-bottom-space", `${safeBottomSpace}px`);
+  if (host) {
+    host.style.setProperty("--kick-rtl-composer-top-space", `${safeTopSpace}px`);
+    host.style.setProperty("--kick-rtl-composer-bottom-space", `${safeBottomSpace}px`);
+  }
+  if (!composer) {
+    root.style.setProperty("--kick-rtl-composer-top-space", "96px");
+    root.style.setProperty("--kick-rtl-composer-bottom-space", "96px");
+    if (host) {
+      host.style.setProperty("--kick-rtl-composer-top-space", "96px");
+      host.style.setProperty("--kick-rtl-composer-bottom-space", "96px");
+    }
+  }
 }
 function ensureSearchBar(): void {
   if (!activeRoot || !settings.enabled) {
@@ -320,9 +351,7 @@ function applyMessage(parts: MessageParts): void {
   if (!settings.enabled) {
     restoreText(parts.text);
     restoreCard(parts);
-    parts.row
-      .querySelector("[data-kick-rtl-override-control]")
-      ?.remove();
+    parts.row.querySelector("[data-kick-rtl-override-control]")?.remove();
     processedSignatures.delete(parts.text);
     clearHighlights(parts.text);
     return;
@@ -344,8 +373,7 @@ function applyMessage(parts: MessageParts): void {
     );
   else parts.username.removeAttribute("data-kick-rtl-accent");
   const emoteImages = parts.text.querySelectorAll("img, svg").length;
-  const emoteOnly =
-    !parts.text.textContent?.trim() && emoteImages > 0;
+  const emoteOnly = !parts.text.textContent?.trim() && emoteImages > 0;
   parts.text.toggleAttribute("data-kick-rtl-emote-only", emoteOnly);
   if (emoteOnly)
     parts.text.setAttribute(
@@ -377,7 +405,8 @@ function ensureOverrideControl(parts: MessageParts): void {
     parts.row.append(control);
   }
   const override = parts.text.getAttribute("data-kick-rtl-override");
-  const label = override === "rtl" ? "RTL" : override === "ltr" ? "LTR" : "Auto";
+  const label =
+    override === "rtl" ? "RTL" : override === "ltr" ? "LTR" : "Auto";
   control.textContent = label;
   control.title =
     override === "rtl"
@@ -417,7 +446,9 @@ function applyStandalone(element: HTMLElement): void {
 function applyReply(element: HTMLElement): void {
   const isReply =
     element.textContent?.includes("Replying to") ||
-    element.matches('blockquote, [data-testid*="reply"], [data-testid*="quote"]');
+    element.matches(
+      'blockquote, [data-testid*="reply"], [data-testid*="quote"]',
+    );
   if (isReply) {
     if (settings.enabled)
       element.setAttribute("data-kick-rtl-reply-preview", "true");
@@ -526,6 +557,7 @@ function refresh(): void {
       !settings.showReplies,
     );
     activeRoot.toggleAttribute("data-kick-rtl-debug", settings.debugMode);
+    syncComposerInset();
   } else {
     document.documentElement.removeAttribute("data-kick-rtl-active");
     document.documentElement.removeAttribute("data-kick-rtl-chat-font");
@@ -534,7 +566,9 @@ function refresh(): void {
     activeRoot.removeAttribute("data-kick-rtl-surface");
     activeRoot.removeAttribute("data-kick-rtl-layout");
     document.documentElement.removeAttribute("data-kick-rtl-input-font");
-    document.documentElement.style.removeProperty("--kick-rtl-input-font-family");
+    document.documentElement.style.removeProperty(
+      "--kick-rtl-input-font-family",
+    );
     document.documentElement.style.removeProperty("--kick-rtl-font-family");
     removeSearchBar();
     activeRoot.style.removeProperty("--kick-rtl-bubble-max");
@@ -595,6 +629,9 @@ function discover(): void {
 }
 const pageObserver = new MutationObserver(() => {
   if (!activeRoot || !document.documentElement.contains(activeRoot)) discover();
+});
+window.addEventListener("resize", () => {
+  if (activeRoot) syncComposerInset();
 });
 chrome.storage.local.get(DEFAULT_SETTINGS, (stored: Partial<Settings>) => {
   settings = { ...DEFAULT_SETTINGS, ...stored };
