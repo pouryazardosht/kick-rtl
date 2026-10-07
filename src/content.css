@@ -78,8 +78,9 @@
 #chatroom-messages [data-kick-rtl-body] {
   grid-column: 1 / -1;
   display: block;
-  width: fit-content;
-  max-width: var(--kick-rtl-bubble-max, 86%);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   margin-top: 0.16rem;
   padding: 0.32rem 0.52rem;
   border: 1px solid rgb(255 255 255 / 0.065);
@@ -92,12 +93,10 @@
 }
 #chatroom-messages [data-kick-rtl-body="rtl"] {
   direction: rtl;
-  justify-self: end;
   text-align: right;
 }
 #chatroom-messages [data-kick-rtl-body="ltr"] {
   direction: ltr;
-  justify-self: start;
   text-align: left;
 }
 #chatroom-messages [data-kick-rtl-emote-only] {

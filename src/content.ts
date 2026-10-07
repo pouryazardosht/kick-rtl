@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS: Settings = {
   inputFont: "vazirmatn",
   density: "compact",
   surface: "soft",
-  bubbleWidth: 86,
+  bubbleWidth: 100,
   fontSize: 14,
   showTimestamps: true,
   showBadges: true,
