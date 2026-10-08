@@ -20,7 +20,7 @@ type Mode = "smart" | "rtl" | "ltr";
 type Font = "vazirmatn" | "arad" | "iransans" | "shabnam" | "system";
 type Density = "compact" | "comfortable";
 type Surface = "soft" | "midnight";
-type Layout = "card" | "imessage" | "discord";
+type Layout = "card" | "imessage" | "discord" | "fast";
 interface Settings {
   enabled: boolean;
   mode: Mode;
@@ -78,7 +78,9 @@ let jumpLatestCount: HTMLElement | undefined;
 let jumpScrollViewport: HTMLElement | undefined;
 let lastMessageIndex: number | undefined;
 let unseenMessageCount = 0;
-let initialLatestScrollScheduled = false;
+let lastAutoScrolledChatUrl: string | undefined;
+let observedChatUrl = location.href;
+let timestampPopover: HTMLElement | undefined;
 
 function fontFamilyStack(font: Font): string | undefined {
   switch (font) {
@@ -223,6 +225,18 @@ function restoreCard(parts: MessageParts): void {
   parts.text.removeAttribute(BODY_ATTRIBUTE);
   parts.username.removeAttribute("data-kick-rtl-username");
   parts.username.removeAttribute("data-kick-rtl-accent");
+  parts.row.querySelector("[data-kick-rtl-copy-control]")?.remove();
+  const timestamp = messageTimestamp(parts);
+  if (timestamp) {
+    timestamp.removeAttribute("data-kick-rtl-timestamp-control");
+    timestamp.removeAttribute("role");
+    timestamp.removeAttribute("tabindex");
+    timestamp.removeAttribute("aria-label");
+  }
+  if (timestampPopover?.parentElement === parts.row) {
+    timestampPopover.remove();
+    timestampPopover = undefined;
+  }
 }
 function applyText(element: HTMLElement, direction: Direction): void {
   saveOriginalDirection(element, ORIGINAL_DIR_ATTRIBUTE);
@@ -408,18 +422,25 @@ function jumpToLatest(): void {
   requestAnimationFrame(updateJumpLatest);
 }
 
-function scrollToLatestOnInitialLoad(): void {
-  if (initialLatestScrollScheduled) return;
-  initialLatestScrollScheduled = true;
+function scrollToLatestOnChatLoad(force = false): void {
+  const chatUrl = location.href;
+  if (!force && lastAutoScrolledChatUrl === chatUrl) return;
+  lastAutoScrolledChatUrl = chatUrl;
   let pass = 0;
+  let passesWithMessages = 0;
   const settleAtLatest = (): void => {
     const root = activeRoot;
     const viewport = root ? scrollViewportFor(root) : undefined;
     if (!root || !viewport) return;
     const hasMessages = root.querySelector("[data-index]") !== null;
-    if (hasMessages || pass >= 12) viewport.scrollTop = viewport.scrollHeight;
+    if (hasMessages) {
+      viewport.scrollTop = viewport.scrollHeight;
+      passesWithMessages += 1;
+    }
     pass += 1;
-    if (pass < 3 || (!hasMessages && pass < 12)) {
+    // Kick replaces the virtual-list height over several animation frames.
+    // Keep this brief and only run it for a newly opened chat, never after.
+    if (pass < 8 || (passesWithMessages < 3 && pass < 24)) {
       requestAnimationFrame(settleAtLatest);
       return;
     }
@@ -473,6 +494,127 @@ function removeJumpLatestButton(): void {
   lastMessageIndex = undefined;
   unseenMessageCount = 0;
 }
+
+async function copyToClipboard(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    return copied;
+  }
+}
+
+function messageTimestamp(parts: MessageParts): HTMLElement | undefined {
+  const timestamp = parts.row.firstElementChild;
+  return timestamp instanceof HTMLElement && /\d/u.test(timestamp.textContent ?? "")
+    ? timestamp
+    : undefined;
+}
+
+function timestampDetails(timestamp: HTMLElement): string {
+  const displayedTime = timestamp.textContent?.trim() ?? "";
+  const source = ["datetime", "data-timestamp", "data-time", "title"]
+    .map((attribute) => timestamp.getAttribute(attribute))
+    .find(Boolean);
+  const parsed =
+    source && /^\d{10,13}$/u.test(source)
+      ? new Date(Number(source) * (source.length === 10 ? 1_000 : 1))
+      : source && /\d{4}[-/]\d{1,2}[-/]/u.test(source)
+        ? new Date(source)
+        : undefined;
+  if (parsed && !Number.isNaN(parsed.valueOf()))
+    return new Intl.DateTimeFormat("fa-IR", {
+      dateStyle: "full",
+      timeStyle: "medium",
+    }).format(parsed);
+  const localDate = new Intl.DateTimeFormat("fa-IR", {
+    dateStyle: "full",
+  }).format(new Date());
+  return `زمان Kick: ${displayedTime}\nتاریخ محلی هنگام نمایش: ${localDate}`;
+}
+
+function showTimestampDetails(parts: MessageParts, timestamp: HTMLElement): void {
+  if (timestampPopover?.parentElement === parts.row) {
+    timestampPopover.remove();
+    timestampPopover = undefined;
+    return;
+  }
+  timestampPopover?.remove();
+  timestampPopover = document.createElement("div");
+  timestampPopover.className = "kick-rtl-timestamp-detail";
+  timestampPopover.textContent = timestampDetails(timestamp);
+  parts.row.append(timestampPopover);
+  window.setTimeout(() => {
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (!(event.target instanceof Node) || !parts.row.contains(event.target)) {
+          timestampPopover?.remove();
+          timestampPopover = undefined;
+        }
+      },
+      { once: true },
+    );
+  }, 0);
+}
+
+function ensureCopyControl(parts: MessageParts): void {
+  let control = parts.row.querySelector<HTMLButtonElement>(
+    "[data-kick-rtl-copy-control]",
+  );
+  if (!control) {
+    control = document.createElement("button");
+    control.type = "button";
+    control.textContent = "کپی";
+    control.title = "کپی پیام";
+    control.setAttribute("aria-label", "کپی پیام");
+    control.setAttribute("data-kick-rtl-copy-control", "true");
+    control.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const timestamp = messageTimestamp(parts)?.textContent?.trim();
+      const value = [timestamp, parts.username.textContent?.trim(), parts.text.innerText.trim()]
+        .filter(Boolean)
+        .join("  ");
+      const copied = await copyToClipboard(value);
+      control!.textContent = copied ? "کپی شد" : "ناموفق";
+      window.setTimeout(() => {
+        if (control?.isConnected) control.textContent = "کپی";
+      }, 1400);
+    });
+    parts.row.append(control);
+  }
+}
+
+function ensureTimestampControl(parts: MessageParts): void {
+  const timestamp = messageTimestamp(parts);
+  if (!timestamp) return;
+  timestamp.setAttribute("data-kick-rtl-timestamp-control", "true");
+  timestamp.tabIndex = 0;
+  timestamp.setAttribute("role", "button");
+  timestamp.setAttribute("aria-label", "نمایش جزئیات زمان پیام");
+  if (timestamp.hasAttribute("data-kick-rtl-timestamp-listener")) return;
+  timestamp.setAttribute("data-kick-rtl-timestamp-listener", "true");
+  const activate = (event: Event): void => {
+    if (!settings.enabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showTimestampDetails(parts, timestamp);
+  };
+  timestamp.addEventListener("click", activate);
+  timestamp.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") activate(event);
+  });
+}
 function applyMessage(parts: MessageParts): void {
   const content = parts.text.textContent ?? "";
   const rowSignature = `${parts.username.textContent ?? ""}\u0000${content}`;
@@ -489,6 +631,8 @@ function applyMessage(parts: MessageParts): void {
     return;
   }
   ensureOverrideControl(parts);
+  ensureCopyControl(parts);
+  ensureTimestampControl(parts);
   const signature = `${rowSignature}\u0000${settingsRevision}`;
   if (processedSignatures.get(parts.text) === signature) return;
   const direction = directionFor(content, parts.text);
@@ -726,7 +870,7 @@ function attach(root: HTMLElement): void {
   if (activeRoot) restoreComposerInset(activeRoot);
   activeRoot = root;
   refresh();
-  scrollToLatestOnInitialLoad();
+  scrollToLatestOnChatLoad(true);
   let queued = false;
   const pending = new Set<Node>();
   const flush = (): void => {
@@ -769,6 +913,12 @@ function discover(): void {
   if (root) attach(root);
 }
 const pageObserver = new MutationObserver(() => {
+  if (observedChatUrl !== location.href) {
+    observedChatUrl = location.href;
+    lastMessageIndex = undefined;
+    unseenMessageCount = 0;
+    scrollToLatestOnChatLoad();
+  }
   if (!activeRoot || !document.documentElement.contains(activeRoot)) discover();
   else if (
     settings.enabled &&
@@ -782,6 +932,26 @@ const pageObserver = new MutationObserver(() => {
 });
 window.addEventListener("resize", () => {
   if (activeRoot) scheduleComposerInset();
+});
+window.addEventListener("keydown", (event) => {
+  if (
+    event.key !== "End" ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    !settings.enabled ||
+    !jumpScrollViewport
+  )
+    return;
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.matches("input, textarea, select, [contenteditable='true']"))
+  )
+    return;
+  event.preventDefault();
+  jumpToLatest();
 });
 chrome.storage.local.get(DEFAULT_SETTINGS, (stored: Partial<Settings>) => {
   settings = { ...DEFAULT_SETTINGS, ...stored };

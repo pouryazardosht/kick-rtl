@@ -1,8 +1,11 @@
 type PopupFont = "vazirmatn" | "arad" | "iransans" | "shabnam" | "system";
+type PopupLayout = "card" | "imessage" | "discord" | "fast";
+type VisualPreset = "custom" | "minimal" | "imessage" | "discord";
 interface PopupSettings {
   enabled: boolean;
   mode: "smart" | "rtl" | "ltr";
-  layout: "card" | "imessage" | "discord";
+  layout: PopupLayout;
+  visualPreset: VisualPreset;
   font: PopupFont;
   inputFont: PopupFont;
   density: "compact" | "comfortable";
@@ -20,6 +23,7 @@ const defaults: PopupSettings = {
   enabled: true,
   mode: "smart",
   layout: "card",
+  visualPreset: "custom",
   font: "vazirmatn",
   inputFont: "vazirmatn",
   density: "compact",
@@ -33,10 +37,46 @@ const defaults: PopupSettings = {
   userAccents: true,
   debugMode: false,
 };
+const visualPresets: Record<Exclude<VisualPreset, "custom">, Partial<PopupSettings>> = {
+  minimal: {
+    layout: "fast",
+    density: "compact",
+    surface: "midnight",
+    bubbleWidth: 100,
+    fontSize: 13,
+    showTimestamps: false,
+    showBadges: false,
+    showReplies: false,
+    userAccents: false,
+  },
+  imessage: {
+    layout: "imessage",
+    density: "comfortable",
+    surface: "soft",
+    bubbleWidth: 86,
+    fontSize: 14,
+    showTimestamps: true,
+    showBadges: true,
+    showReplies: true,
+    userAccents: true,
+  },
+  discord: {
+    layout: "discord",
+    density: "compact",
+    surface: "midnight",
+    bubbleWidth: 100,
+    fontSize: 14,
+    showTimestamps: true,
+    showBadges: true,
+    showReplies: false,
+    userAccents: true,
+  },
+};
 
 const enabledInput = document.querySelector<HTMLInputElement>("#enabled")!;
 const modeInput = document.querySelector<HTMLSelectElement>("#mode")!;
 const layoutInput = document.querySelector<HTMLSelectElement>("#layout")!;
+const visualPresetInput = document.querySelector<HTMLSelectElement>("#visualPreset")!;
 const fontInput = document.querySelector<HTMLSelectElement>("#font")!;
 const inputFontInput = document.querySelector<HTMLSelectElement>("#inputFont")!;
 const densityInput = document.querySelector<HTMLSelectElement>("#density")!;
@@ -67,6 +107,7 @@ function render(settings: PopupSettings): void {
   enabledInput.checked = settings.enabled;
   modeInput.value = settings.mode;
   layoutInput.value = settings.layout;
+  visualPresetInput.value = settings.visualPreset;
   fontInput.value = settings.font;
   inputFontInput.value = settings.inputFont;
   densityInput.value = settings.density;
@@ -92,7 +133,8 @@ function readSettings(): PopupSettings {
   return {
     enabled: enabledInput.checked,
     mode: modeInput.value as PopupSettings["mode"],
-    layout: layoutInput.value as PopupSettings["layout"],
+    layout: layoutInput.value as PopupLayout,
+    visualPreset: visualPresetInput.value as VisualPreset,
     font: fontInput.value as PopupFont,
     inputFont: inputFontInput.value as PopupFont,
     density: densityInput.value as PopupSettings["density"],
@@ -107,8 +149,30 @@ function readSettings(): PopupSettings {
     debugMode: debugModeInput.checked,
   };
 }
-function save(): void {
+function save(markVisualPresetCustom = false): void {
+  if (markVisualPresetCustom) visualPresetInput.value = "custom";
   const settings = readSettings();
+  chrome.storage.local.set(settings, () => {
+    if (chrome.runtime.lastError) {
+      statusElement.textContent = "ذخیره نشد";
+      statusElement.classList.add("is-off");
+      return;
+    }
+    render(settings);
+  });
+}
+
+function applyVisualPreset(): void {
+  const preset = visualPresetInput.value as VisualPreset;
+  if (preset === "custom") {
+    save();
+    return;
+  }
+  const settings: PopupSettings = {
+    ...readSettings(),
+    ...visualPresets[preset],
+    visualPreset: preset,
+  };
   chrome.storage.local.set(settings, () => {
     if (chrome.runtime.lastError) {
       statusElement.textContent = "ذخیره نشد";
@@ -127,27 +191,28 @@ chrome.storage.local.get(defaults, (stored: Partial<PopupSettings>) => {
   }
   render({ ...defaults, ...stored });
 });
-enabledInput.addEventListener("change", save);
-modeInput.addEventListener("change", save);
-layoutInput.addEventListener("change", save);
-fontInput.addEventListener("change", save);
-inputFontInput.addEventListener("change", save);
-densityInput.addEventListener("change", save);
-surfaceInput.addEventListener("change", save);
-popupFontInput.addEventListener("change", save);
+enabledInput.addEventListener("change", () => save());
+modeInput.addEventListener("change", () => save());
+layoutInput.addEventListener("change", () => save(true));
+visualPresetInput.addEventListener("change", applyVisualPreset);
+fontInput.addEventListener("change", () => save());
+inputFontInput.addEventListener("change", () => save());
+densityInput.addEventListener("change", () => save(true));
+surfaceInput.addEventListener("change", () => save(true));
+popupFontInput.addEventListener("change", () => save());
 bubbleWidthInput.addEventListener("input", () => {
   bubbleWidthValue.textContent = formatPercent(Number(bubbleWidthInput.value));
-  save();
+  save(true);
 });
 fontSizeInput.addEventListener("input", () => {
   fontSizeValue.textContent = formatPx(Number(fontSizeInput.value));
-  save();
+  save(true);
 });
-showTimestampsInput.addEventListener("change", save);
-showBadgesInput.addEventListener("change", save);
-showRepliesInput.addEventListener("change", save);
-userAccentsInput.addEventListener("change", save);
-debugModeInput.addEventListener("change", save);
+showTimestampsInput.addEventListener("change", () => save(true));
+showBadgesInput.addEventListener("change", () => save(true));
+showRepliesInput.addEventListener("change", () => save(true));
+userAccentsInput.addEventListener("change", () => save(true));
+debugModeInput.addEventListener("change", () => save());
 reloadButton.addEventListener("click", () => {
   chrome.tabs.reload(undefined, { bypassCache: true }, () => {
     if (chrome.runtime.lastError) {
