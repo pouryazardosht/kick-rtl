@@ -1,30 +1,13 @@
-/* Keep the message list below the composer and leave room to scroll its final rows. */
+/*
+ * Kick virtualizes this element: its children are absolutely positioned and its
+ * inline height is the complete virtual-list height. It must not become a
+ * second scroll container or receive padding, because neither changes the
+ * parent scroll viewport that owns the composer overlay. The content script
+ * measures the actual viewport and applies its reserve as margin instead.
+ */
 #chatroom-messages {
   --kick-rtl-composer-top-space: 0px;
   --kick-rtl-composer-bottom-space: 0px;
-  position: relative;
-  z-index: 0;
-  isolation: isolate;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto !important;
-  overscroll-behavior-y: contain;
-  padding-top: calc(
-    var(--kick-rtl-composer-top-space, 0px) +
-      max(0.5rem, env(safe-area-inset-top, 0px))
-  ) !important;
-  padding-bottom: calc(
-    var(--kick-rtl-composer-bottom-space, 0px) +
-      max(0.5rem, env(safe-area-inset-bottom, 0px))
-  ) !important;
-  scroll-padding-top: calc(
-    var(--kick-rtl-composer-top-space, 0px) +
-      max(0.5rem, env(safe-area-inset-top, 0px))
-  );
-  scroll-padding-bottom: calc(
-    var(--kick-rtl-composer-bottom-space, 0px) +
-      max(0.5rem, env(safe-area-inset-bottom, 0px))
-  );
 }
 #chatroom:has(#chatroom-messages) {
   position: relative;
@@ -300,52 +283,60 @@
   transform: scale(1.22);
 }
 
-/* In-chat keyword search (sibling of #chatroom-messages, not inside the virtual list). */
-#kick-rtl-search-root {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+/* Floats above the composer only when the reader has left the newest message. */
+#kick-rtl-jump-latest {
+  position: absolute;
+  z-index: 46;
+  left: 0.7rem;
+  bottom: var(--kick-rtl-jump-bottom, 0.75rem);
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem 0.5rem;
-  flex-shrink: 0;
-  margin: 0.35rem 0.45rem 0.42rem;
-  padding: 0.38rem 0.55rem;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 0.75rem;
-  background: rgb(0 0 0 / 0.82);
-  font-family: var(--kick-rtl-font-family, inherit);
+  gap: 0.38rem;
+  min-height: 2.2rem;
+  border: 1px solid rgb(178 255 145 / 0.38);
+  border-radius: 999px;
+  padding: 0.38rem 0.62rem;
+  background: rgb(15 20 15 / 0.94);
+  box-shadow:
+    0 6px 18px rgb(0 0 0 / 0.32),
+    inset 0 1px rgb(255 255 255 / 0.1);
+  color: #e7ffe0;
+  font: 700 0.78rem/1 Vazirmatn, Tahoma, sans-serif;
+  cursor: pointer;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    background 150ms ease;
 }
-#kick-rtl-search-root .kick-rtl-search-label {
-  color: rgb(255 255 255 / 0.72);
-  font-size: 0.78rem;
-  font-weight: 650;
-  white-space: nowrap;
+#kick-rtl-jump-latest:hover {
+  background: rgb(36 62 30 / 0.96);
+  transform: translateY(-1px);
 }
-#kick-rtl-search-root .kick-rtl-search-input {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 0.55rem;
-  padding: 0.35rem 0.55rem;
-  background: rgb(255 255 255 / 0.06);
-  color: #f5f5f7;
-  font: inherit;
-  font-size: 0.82rem;
-  direction: auto;
-  unicode-bidi: plaintext;
+#kick-rtl-jump-latest:focus-visible {
+  outline: 2px solid #a5f78b;
+  outline-offset: 2px;
 }
-#kick-rtl-search-root .kick-rtl-search-input:focus {
-  outline: 2px solid rgb(83 252 24 / 0.45);
-  outline-offset: 1px;
-  border-color: rgb(83 252 24 / 0.35);
+#kick-rtl-jump-latest[hidden] {
+  display: none;
 }
-#kick-rtl-search-root .kick-rtl-search-count {
-  color: rgb(143 240 210 / 0.95);
-  font-size: 0.72rem;
-  font-weight: 650;
-  white-space: nowrap;
+#kick-rtl-jump-latest .kick-rtl-jump-icon {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: rgb(83 252 24 / 0.2);
+  color: #b4ff9a;
+  font: 900 1rem/1 Arial, sans-serif;
+}
+#kick-rtl-jump-latest .kick-rtl-jump-count {
+  min-width: 1.25rem;
+  border-radius: 999px;
+  padding: 0.15rem 0.32rem;
+  background: #53fc18;
+  color: #071006;
+  font-size: 0.7rem;
+  text-align: center;
 }
 
 /* Optional visibility controls. */
@@ -377,12 +368,6 @@
   color: #8ff0d2 !important;
 }
 
-#chatroom-messages mark[data-kick-rtl-highlight] {
-  padding: 0 0.16em;
-  border-radius: 0.25em;
-  background: rgb(83 252 24 / 0.22);
-  color: inherit;
-}
 #chatroom-messages[data-kick-rtl-debug] [data-kick-rtl-bidi] {
   outline: 1px dashed #f6cc65;
   outline-offset: 2px;
@@ -408,7 +393,7 @@
   bottom: -0.45rem !important;
 }
 
-/* Extension chat font on messages, timestamps, replies, and search (not Kick defaults). */
+/* Extension chat font on messages, timestamps, and replies (not Kick defaults). */
 #chatroom-messages[data-kick-rtl-font] {
   font-family: var(--kick-rtl-font-family, inherit);
 }
@@ -423,11 +408,6 @@ html[data-kick-rtl-active]
   ) {
   font-family: var(--kick-rtl-font-family, inherit) !important;
 }
-#kick-rtl-search-root,
-#kick-rtl-search-root .kick-rtl-search-input {
-  font-family: var(--kick-rtl-font-family, inherit) !important;
-}
-
 html[data-kick-rtl-active] #chat-input-wrapper,
 html[data-kick-rtl-active] #chat-input-wrapper [data-input="true"],
 html[data-kick-rtl-active] #chat-input-wrapper [data-placeholder="true"] {

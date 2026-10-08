@@ -16,7 +16,7 @@
         </div>
         <span class="status" id="status">فعال</span>
       </header>
-      <section class="card">
+      <section class="card card-primary">
         <div class="setting-row">
           <div>
             <h2>اصلاح جهت پیام‌ها</h2>
@@ -28,14 +28,17 @@
             ></span
           ></label>
         </div>
-        <label class="mode-label" for="mode">حالت نمایش</label>
+        <div class="section-heading">
+          <span>رفتار پیام‌ها</span>
+        </div>
+        <label class="mode-label" for="mode">تشخیص جهت متن</label>
         <select id="mode">
           <option value="smart">هوشمند — تشخیص خودکار</option>
           <option value="rtl">اجبار راست‌چین همهٔ پیام‌ها</option>
           <option value="ltr">اجبار چپ‌چین همهٔ پیام‌ها</option>
         </select>
-        <p class="field-hint">برای هر پیام هم می‌توانید دکمهٔ Auto / RTL / LTR را بزنید.</p>
-        <label class="mode-label" for="layout">چیدمان کارت‌ها</label>
+        <p class="field-hint">روی هر پیام هم می‌توانید جهت را موقتاً تغییر دهید.</p>
+        <label class="mode-label" for="layout">چیدمان پیام‌ها</label>
         <select id="layout">
           <option value="card">شیشه‌ای — پیش‌فرض</option>
           <option value="imessage">فشرده — شبیه iMessage</option>
@@ -43,7 +46,9 @@
         </select>
       </section>
       <section class="card">
-        <h2 class="section-title">نمایش چت</h2>
+        <div class="section-heading">
+          <span>ظاهر و خوانایی</span>
+        </div>
         <label class="mode-label" for="font">فونت پیام‌های فارسی</label>
         <select id="font">
           <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
@@ -105,7 +110,9 @@
         </div>
       </section>
       <section class="card">
-        <p class="section-title">نمایش در چت</p>
+        <div class="section-heading">
+          <span>نمایش و جستجو</span>
+        </div>
         <div class="toggle-grid">
           <label class="mini-toggle"
             ><input id="showTimestamps" type="checkbox" checked /><span
@@ -133,22 +140,11 @@
             ></label
           >
         </div>
-        <label class="mode-label" for="highlight">جستجو و هایلایت کلمه</label>
-        <input
-          id="highlight"
-          class="text-input"
-          type="search"
-          placeholder="مثلاً سلام یا kick"
-          autocomplete="off"
-          spellcheck="false"
-        />
-        <p class="field-hint">
-          در نوار بالای چت هم می‌توانید جستجو کنید؛ ی و ک عربی/فارسی یکسان
-          می‌شوند.
-        </p>
       </section>
-      <section class="card">
-        <h2 class="section-title">پنل افزونه</h2>
+      <section class="card card-compact">
+        <div class="section-heading">
+          <span>خود افزونه</span>
+        </div>
         <label class="mode-label" for="popupFont">فونت پنل افزونه</label>
         <select id="popupFont">
           <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
@@ -160,7 +156,7 @@
       </section>
       <section class="hint">
         <span aria-hidden="true">↻</span>
-        <p>بیشتر تنظیمات بلافاصله اعمال می‌شوند؛ در صورت نیاز صفحه را تازه کنید.</p>
+        <p>تنظیمات فوراً اعمال می‌شوند. اگر Kick تازه باز شده، یک‌بار صفحه را تازه کنید.</p>
       </section>
       <button id="reload" class="reload" type="button">
         تازه‌سازی صفحهٔ Kick

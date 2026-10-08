@@ -14,7 +14,6 @@ interface PopupSettings {
   showBadges: boolean;
   showReplies: boolean;
   userAccents: boolean;
-  highlight: string;
   debugMode: boolean;
 }
 const defaults: PopupSettings = {
@@ -32,7 +31,6 @@ const defaults: PopupSettings = {
   showBadges: true,
   showReplies: true,
   userAccents: true,
-  highlight: "",
   debugMode: false,
 };
 
@@ -53,7 +51,6 @@ const showBadgesInput = document.querySelector<HTMLInputElement>("#showBadges")!
 const showRepliesInput = document.querySelector<HTMLInputElement>("#showReplies")!;
 const userAccentsInput = document.querySelector<HTMLInputElement>("#userAccents")!;
 const debugModeInput = document.querySelector<HTMLInputElement>("#debugMode")!;
-const highlightInput = document.querySelector<HTMLInputElement>("#highlight")!;
 const statusElement = document.querySelector<HTMLElement>("#status")!;
 const reloadButton = document.querySelector<HTMLButtonElement>("#reload")!;
 const dependentControls = document.querySelectorAll<
@@ -84,7 +81,6 @@ function render(settings: PopupSettings): void {
   showRepliesInput.checked = settings.showReplies;
   userAccentsInput.checked = settings.userAccents;
   debugModeInput.checked = settings.debugMode;
-  highlightInput.value = settings.highlight;
   document.documentElement.dataset.font = settings.popupFont;
   dependentControls.forEach((control) => {
     control.disabled = !settings.enabled;
@@ -108,7 +104,6 @@ function readSettings(): PopupSettings {
     showBadges: showBadgesInput.checked,
     showReplies: showRepliesInput.checked,
     userAccents: userAccentsInput.checked,
-    highlight: highlightInput.value,
     debugMode: debugModeInput.checked,
   };
 }
@@ -153,7 +148,6 @@ showBadgesInput.addEventListener("change", save);
 showRepliesInput.addEventListener("change", save);
 userAccentsInput.addEventListener("change", save);
 debugModeInput.addEventListener("change", save);
-highlightInput.addEventListener("input", save);
 reloadButton.addEventListener("click", () => {
   chrome.tabs.reload(undefined, { bypassCache: true }, () => {
     if (chrome.runtime.lastError) {

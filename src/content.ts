@@ -35,7 +35,6 @@ interface Settings {
   showBadges: boolean;
   showReplies: boolean;
   userAccents: boolean;
-  highlight: string;
   debugMode: boolean;
 }
 interface MessageParts {
@@ -57,21 +56,29 @@ const DEFAULT_SETTINGS: Settings = {
   showBadges: true,
   showReplies: true,
   userAccents: true,
-  highlight: "",
   debugMode: false,
 };
 let settings = { ...DEFAULT_SETTINGS };
 let chatObserver: MutationObserver | undefined;
 let activeRoot: HTMLElement | undefined;
 let settingsRevision = 0;
+let layoutFrame: number | undefined;
+let observedComposer: HTMLElement | undefined;
+let observedViewport: HTMLElement | undefined;
+let composerResizeObserver: ResizeObserver | undefined;
+let viewportResizeObserver: ResizeObserver | undefined;
 const processedSignatures = new WeakMap<HTMLElement, string>();
 const rowSignatures = new WeakMap<HTMLElement, string>();
-let searchRoot: HTMLElement | undefined;
-let searchInput: HTMLInputElement | undefined;
-let searchCountElement: HTMLElement | undefined;
-let searchWriteTimer: ReturnType<typeof setTimeout> | undefined;
-
-const SEARCH_ROOT_ID = "kick-rtl-search-root";
+const originalRootMargins = new WeakMap<HTMLElement, string>();
+const originalViewportPadding = new WeakMap<HTMLElement, string>();
+const reservedViewportForRoot = new WeakMap<HTMLElement, HTMLElement>();
+const JUMP_LATEST_ROOT_ID = "kick-rtl-jump-latest";
+let jumpLatestRoot: HTMLButtonElement | undefined;
+let jumpLatestCount: HTMLElement | undefined;
+let jumpScrollViewport: HTMLElement | undefined;
+let lastMessageIndex: number | undefined;
+let unseenMessageCount = 0;
+let initialLatestScrollScheduled = false;
 
 function fontFamilyStack(font: Font): string | undefined {
   switch (font) {
@@ -96,13 +103,47 @@ function chatChromeHost(): HTMLElement | undefined {
   );
 }
 
-function normalizeForSearch(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/\u064A/gu, "\u06CC")
-    .replace(/\u0649/gu, "\u06CC")
-    .replace(/\u0643/gu, "\u06A9")
-    .toLocaleLowerCase("fa");
+function chatComposer(root: HTMLElement): HTMLElement | undefined {
+  return (
+    root.closest<HTMLElement>("#chatroom")?.querySelector("#chat-input-wrapper") ??
+    document.querySelector<HTMLElement>("#chat-input-wrapper") ??
+    undefined
+  );
+}
+
+function scrollViewportFor(root: HTMLElement): HTMLElement | undefined {
+  let ancestor = root.parentElement;
+  while (ancestor && ancestor !== document.body) {
+    const overflowY = getComputedStyle(ancestor).overflowY;
+    if (/(auto|scroll|overlay)/u.test(overflowY) && ancestor.clientHeight > 0)
+      return ancestor;
+    ancestor = ancestor.parentElement;
+  }
+  return root.parentElement ?? undefined;
+}
+
+function rememberStyle(
+  cache: WeakMap<HTMLElement, string>,
+  element: HTMLElement,
+  property: "margin-bottom" | "scroll-padding-bottom",
+): void {
+  if (!cache.has(element)) cache.set(element, element.style.getPropertyValue(property));
+}
+
+function restoreComposerInset(root: HTMLElement): void {
+  const originalMargin = originalRootMargins.get(root);
+  if (originalMargin !== undefined) {
+    root.style.setProperty("margin-bottom", originalMargin);
+    originalRootMargins.delete(root);
+  }
+  const viewport = reservedViewportForRoot.get(root);
+  if (!viewport) return;
+  const originalPadding = originalViewportPadding.get(viewport);
+  if (originalPadding !== undefined) {
+    viewport.style.setProperty("scroll-padding-bottom", originalPadding);
+    originalViewportPadding.delete(viewport);
+  }
+  reservedViewportForRoot.delete(root);
 }
 
 function getOverrideDirection(element?: HTMLElement): Direction | undefined {
@@ -197,148 +238,240 @@ function accentFor(name: string): number {
     0,
   );
 }
-function clearHighlights(element: HTMLElement): void {
-  element
-    .querySelectorAll<HTMLElement>("mark[data-kick-rtl-highlight]")
-    .forEach((mark) =>
-      mark.replaceWith(document.createTextNode(mark.textContent ?? "")),
-    );
-}
-function highlightMatchesInText(value: string, query: string): Node[] {
-  const needle = normalizeForSearch(query);
-  if (!needle) return [document.createTextNode(value)];
-  const haystack = normalizeForSearch(value);
-  const nodes: Node[] = [];
-  let cursor = 0;
-  while (cursor < value.length) {
-    const index = haystack.indexOf(needle, cursor);
-    if (index < 0) {
-      nodes.push(document.createTextNode(value.slice(cursor)));
-      break;
-    }
-    if (index > cursor)
-      nodes.push(document.createTextNode(value.slice(cursor, index)));
-    const mark = document.createElement("mark");
-    mark.dataset.kickRtlHighlight = "true";
-    mark.textContent = value.slice(index, index + query.length);
-    nodes.push(mark);
-    cursor = index + query.length;
-  }
-  return nodes;
-}
-function applyHighlights(element: HTMLElement): void {
-  clearHighlights(element);
-  const query = settings.highlight.trim();
-  if (!query) return;
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
-    acceptNode: (node) =>
-      node.parentElement?.closest("mark[data-kick-rtl-highlight]")
-        ? NodeFilter.FILTER_REJECT
-        : NodeFilter.FILTER_ACCEPT,
-  });
-  const nodes: Text[] = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
-  nodes.forEach((node) => {
-    const value = node.data;
-    if (!normalizeForSearch(value).includes(normalizeForSearch(query))) return;
-    const fragment = document.createDocumentFragment();
-    highlightMatchesInText(value, query).forEach((part) =>
-      fragment.append(part),
-    );
-    node.replaceWith(fragment);
-  });
-}
-function countHighlights(root: HTMLElement): number {
-  return root.querySelectorAll("mark[data-kick-rtl-highlight]").length;
-}
-function updateSearchCount(): void {
-  if (!searchCountElement || !activeRoot) return;
-  const query = settings.highlight.trim();
-  if (!query) {
-    searchCountElement.textContent = "";
-    return;
-  }
-  const total = countHighlights(activeRoot);
-  searchCountElement.textContent = total
-    ? `${total.toLocaleString("fa-IR")} مورد`
-    : "موردی نیست";
-}
-function removeSearchBar(): void {
-  searchRoot?.remove();
-  searchRoot = undefined;
-  searchInput = undefined;
-  searchCountElement = undefined;
-}
 function syncComposerInset(): void {
   const root =
     activeRoot ?? document.querySelector<HTMLElement>(CHAT_ROOT_SELECTOR);
   if (!root) return;
   const host = chatChromeHost() ?? root.parentElement;
-  const composer = host?.querySelector<HTMLElement>("#chat-input-wrapper");
-  const composerHeight = composer
-    ? Math.ceil(composer.getBoundingClientRect().height)
-    : 0;
-  const rootRect = root.getBoundingClientRect();
+  const composer = chatComposer(root);
+  const viewport = scrollViewportFor(root);
+  if (!viewport) return;
+  const previousViewport = reservedViewportForRoot.get(root);
+  if (previousViewport && previousViewport !== viewport) {
+    const previousPadding = originalViewportPadding.get(previousViewport);
+    if (previousPadding !== undefined) {
+      previousViewport.style.setProperty("scroll-padding-bottom", previousPadding);
+      originalViewportPadding.delete(previousViewport);
+    }
+  }
+  const viewportRect = viewport.getBoundingClientRect();
   const composerRect = composer?.getBoundingClientRect();
-  const safeTopSpace = composerRect && composerRect.top < rootRect.top + 8 ? composerHeight + 12 : 0;
-  const safeBottomSpace = composerRect && composerRect.bottom > rootRect.bottom - 8 ? composerHeight + 12 : 0;
+  const overlapsViewport =
+    composerRect &&
+    composerRect.bottom > viewportRect.top &&
+    composerRect.top < viewportRect.bottom;
+  const safeTopSpace =
+    overlapsViewport && composerRect.top <= viewportRect.top + 8
+      ? Math.ceil(Math.min(composerRect.bottom, viewportRect.bottom) - viewportRect.top) + 12
+      : 0;
+  const safeBottomSpace =
+    overlapsViewport && composerRect.bottom >= viewportRect.bottom - 8
+      ? Math.ceil(viewportRect.bottom - Math.max(composerRect.top, viewportRect.top)) + 12
+      : 0;
   root.style.setProperty("--kick-rtl-composer-top-space", `${safeTopSpace}px`);
   root.style.setProperty("--kick-rtl-composer-bottom-space", `${safeBottomSpace}px`);
+  rememberStyle(originalRootMargins, root, "margin-bottom");
+  rememberStyle(originalViewportPadding, viewport, "scroll-padding-bottom");
+  reservedViewportForRoot.set(root, viewport);
+  root.style.setProperty("margin-bottom", `${safeBottomSpace}px`);
+  viewport.style.setProperty("scroll-padding-bottom", `${safeBottomSpace}px`);
   if (host) {
     host.style.setProperty("--kick-rtl-composer-top-space", `${safeTopSpace}px`);
     host.style.setProperty("--kick-rtl-composer-bottom-space", `${safeBottomSpace}px`);
   }
-  if (!composer) {
-    root.style.setProperty("--kick-rtl-composer-top-space", "96px");
-    root.style.setProperty("--kick-rtl-composer-bottom-space", "96px");
-    if (host) {
-      host.style.setProperty("--kick-rtl-composer-top-space", "96px");
-      host.style.setProperty("--kick-rtl-composer-bottom-space", "96px");
+  updateJumpLatestPosition();
+}
+
+function scheduleComposerInset(): void {
+  if (layoutFrame !== undefined) return;
+  layoutFrame = requestAnimationFrame(() => {
+    layoutFrame = undefined;
+    if (activeRoot && settings.enabled) {
+      syncComposerInset();
+      updateJumpLatest();
+    }
+  });
+}
+
+function observeComposerInset(root: HTMLElement): void {
+  const composer = chatComposer(root);
+  const viewport = scrollViewportFor(root);
+  if (composer !== observedComposer) {
+    composerResizeObserver?.disconnect();
+    composerResizeObserver = undefined;
+    observedComposer = composer;
+    if (composer) {
+      composerResizeObserver = new ResizeObserver(scheduleComposerInset);
+      composerResizeObserver.observe(composer);
     }
   }
+  if (viewport !== observedViewport) {
+    viewportResizeObserver?.disconnect();
+    viewportResizeObserver = undefined;
+    observedViewport = viewport;
+  }
+  if (viewport && !viewportResizeObserver) {
+    viewportResizeObserver = new ResizeObserver(scheduleComposerInset);
+    viewportResizeObserver.observe(viewport);
+  }
+  observeJumpViewport(viewport);
+  scheduleComposerInset();
 }
-function ensureSearchBar(): void {
+
+function highestVirtualMessageIndex(root: HTMLElement): number | undefined {
+  let highest: number | undefined;
+  root.querySelectorAll<HTMLElement>("[data-index]").forEach((element) => {
+    const index = Number(element.dataset.index);
+    if (Number.isFinite(index) && (highest === undefined || index > highest))
+      highest = index;
+  });
+  return highest;
+}
+
+function unreadMessagesFromNativeDivider(root: HTMLElement): number {
+  const rows = Array.from(root.querySelectorAll<HTMLElement>("[data-index]"));
+  const divider = rows.find((row) =>
+    /new messages|پیام(?:‌| )های جدید/iu.test(row.textContent ?? ""),
+  );
+  const dividerIndex = divider ? Number(divider.dataset.index) : Number.NaN;
+  if (!Number.isFinite(dividerIndex)) return 0;
+  return rows.filter((row) => {
+    const index = Number(row.dataset.index);
+    return (
+      Number.isFinite(index) &&
+      index > dividerIndex &&
+      !!row.querySelector('button[data-prevent-expand="true"]')
+    );
+  }).length;
+}
+
+function isAtLatest(viewport: HTMLElement): boolean {
+  const remaining = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+  return remaining <= Math.max(40, viewport.clientHeight * 0.04);
+}
+
+function formatUnreadCount(count: number): string {
+  return count > 99 ? "۹۹+" : count.toLocaleString("fa-IR");
+}
+
+function updateJumpLatestPosition(): void {
+  if (!jumpLatestRoot || !activeRoot) return;
+  const host = chatChromeHost();
+  const composer = chatComposer(activeRoot);
+  if (!host || !composer) return;
+  const hostRect = host.getBoundingClientRect();
+  const composerRect = composer.getBoundingClientRect();
+  const offset = Math.max(12, Math.ceil(hostRect.bottom - composerRect.top) + 12);
+  jumpLatestRoot.style.setProperty("--kick-rtl-jump-bottom", `${offset}px`);
+}
+
+function updateJumpLatest(): void {
+  if (!jumpLatestRoot || !activeRoot || !jumpScrollViewport) return;
+  const atLatest = isAtLatest(jumpScrollViewport);
+  const currentIndex = highestVirtualMessageIndex(activeRoot);
+  const dividerUnread = unreadMessagesFromNativeDivider(activeRoot);
+  if (atLatest) {
+    unseenMessageCount = 0;
+    lastMessageIndex = currentIndex;
+  } else {
+    if (dividerUnread) unseenMessageCount = dividerUnread;
+    else if (
+      currentIndex !== undefined &&
+      lastMessageIndex !== undefined &&
+      currentIndex > lastMessageIndex
+    ) {
+      unseenMessageCount += currentIndex - lastMessageIndex;
+    }
+    if (currentIndex !== undefined) lastMessageIndex = currentIndex;
+  }
+  jumpLatestRoot.hidden = atLatest;
+  jumpLatestRoot.setAttribute(
+    "aria-label",
+    unseenMessageCount
+      ? `رفتن به آخرین پیام‌ها؛ ${formatUnreadCount(unseenMessageCount)} پیام جدید`
+      : "رفتن به آخرین پیام‌ها",
+  );
+  if (jumpLatestCount) {
+    jumpLatestCount.hidden = unseenMessageCount === 0;
+    jumpLatestCount.textContent = formatUnreadCount(unseenMessageCount);
+  }
+  updateJumpLatestPosition();
+}
+
+function jumpToLatest(): void {
+  if (!jumpScrollViewport) return;
+  unseenMessageCount = 0;
+  jumpScrollViewport.scrollTo({
+    top: jumpScrollViewport.scrollHeight,
+    behavior: "smooth",
+  });
+  requestAnimationFrame(updateJumpLatest);
+}
+
+function scrollToLatestOnInitialLoad(): void {
+  if (initialLatestScrollScheduled) return;
+  initialLatestScrollScheduled = true;
+  let pass = 0;
+  const settleAtLatest = (): void => {
+    const root = activeRoot;
+    const viewport = root ? scrollViewportFor(root) : undefined;
+    if (!root || !viewport) return;
+    const hasMessages = root.querySelector("[data-index]") !== null;
+    if (hasMessages || pass >= 12) viewport.scrollTop = viewport.scrollHeight;
+    pass += 1;
+    if (pass < 3 || (!hasMessages && pass < 12)) {
+      requestAnimationFrame(settleAtLatest);
+      return;
+    }
+    updateJumpLatest();
+  };
+  requestAnimationFrame(settleAtLatest);
+}
+
+function observeJumpViewport(viewport: HTMLElement | undefined): void {
+  if (jumpScrollViewport === viewport) return;
+  jumpScrollViewport?.removeEventListener("scroll", updateJumpLatest);
+  jumpScrollViewport = viewport;
+  jumpScrollViewport?.addEventListener("scroll", updateJumpLatest, {
+    passive: true,
+  });
+  updateJumpLatest();
+}
+
+function ensureJumpLatestButton(): void {
   if (!activeRoot || !settings.enabled) {
-    removeSearchBar();
+    removeJumpLatestButton();
     return;
   }
   const host = chatChromeHost();
   if (!host) return;
-  if (!searchRoot) {
-    searchRoot = document.createElement("div");
-    searchRoot.id = SEARCH_ROOT_ID;
-    const label = document.createElement("label");
-    label.className = "kick-rtl-search-label";
-    label.textContent = "جستجو";
-    searchInput = document.createElement("input");
-    searchInput.type = "search";
-    searchInput.className = "kick-rtl-search-input";
-    searchInput.placeholder = "کلمهٔ فارسی یا انگلیسی…";
-    searchInput.spellcheck = false;
-    searchInput.autocomplete = "off";
-    searchCountElement = document.createElement("span");
-    searchCountElement.className = "kick-rtl-search-count";
-    searchInput.addEventListener("input", () => {
-      settings.highlight = searchInput!.value;
-      refreshHighlightsOnly();
-      if (searchWriteTimer) clearTimeout(searchWriteTimer);
-      searchWriteTimer = setTimeout(
-        () => chrome.storage.local.set({ highlight: settings.highlight }),
-        280,
-      );
-    });
-    searchRoot.append(label, searchInput, searchCountElement);
+  if (!jumpLatestRoot) {
+    jumpLatestRoot = document.createElement("button");
+    jumpLatestRoot.id = JUMP_LATEST_ROOT_ID;
+    jumpLatestRoot.type = "button";
+    jumpLatestRoot.innerHTML =
+      '<span class="kick-rtl-jump-icon" aria-hidden="true">↓</span><span>آخرین پیام‌ها</span><span class="kick-rtl-jump-count" hidden></span>';
+    jumpLatestCount =
+      jumpLatestRoot.querySelector<HTMLElement>(".kick-rtl-jump-count") ??
+      undefined;
+    jumpLatestRoot.addEventListener("click", jumpToLatest);
   }
-  if (searchRoot.parentElement !== host) host.prepend(searchRoot);
-  if (searchInput && searchInput.value !== settings.highlight)
-    searchInput.value = settings.highlight;
+  if (jumpLatestRoot.parentElement !== host) host.append(jumpLatestRoot);
+  const viewport = scrollViewportFor(activeRoot);
+  observeJumpViewport(viewport);
+  if (lastMessageIndex === undefined)
+    lastMessageIndex = highestVirtualMessageIndex(activeRoot);
+  updateJumpLatest();
 }
-function refreshHighlightsOnly(): void {
-  if (!activeRoot) return;
-  activeRoot
-    .querySelectorAll<HTMLElement>(`[${BODY_ATTRIBUTE}]`)
-    .forEach((body) => applyHighlights(body));
-  updateSearchCount();
+
+function removeJumpLatestButton(): void {
+  jumpLatestRoot?.remove();
+  jumpLatestRoot = undefined;
+  jumpLatestCount = undefined;
+  jumpScrollViewport?.removeEventListener("scroll", updateJumpLatest);
+  jumpScrollViewport = undefined;
+  lastMessageIndex = undefined;
+  unseenMessageCount = 0;
 }
 function applyMessage(parts: MessageParts): void {
   const content = parts.text.textContent ?? "";
@@ -353,7 +486,6 @@ function applyMessage(parts: MessageParts): void {
     restoreCard(parts);
     parts.row.querySelector("[data-kick-rtl-override-control]")?.remove();
     processedSignatures.delete(parts.text);
-    clearHighlights(parts.text);
     return;
   }
   ensureOverrideControl(parts);
@@ -381,7 +513,6 @@ function applyMessage(parts: MessageParts): void {
       String(Math.min(99, emoteImages)),
     );
   else parts.text.removeAttribute("data-kick-rtl-emote-count");
-  applyHighlights(parts.text);
   processedSignatures.set(parts.text, signature);
 }
 function ensureOverrideControl(parts: MessageParts): void {
@@ -510,7 +641,7 @@ function refresh(): void {
     activeRoot.setAttribute("data-kick-rtl-density", settings.density);
     activeRoot.setAttribute("data-kick-rtl-surface", settings.surface);
     activeRoot.setAttribute("data-kick-rtl-layout", settings.layout);
-    ensureSearchBar();
+    ensureJumpLatestButton();
     document.documentElement.setAttribute(
       "data-kick-rtl-input-font",
       settings.inputFont,
@@ -558,6 +689,7 @@ function refresh(): void {
     );
     activeRoot.toggleAttribute("data-kick-rtl-debug", settings.debugMode);
     syncComposerInset();
+    observeComposerInset(activeRoot);
   } else {
     document.documentElement.removeAttribute("data-kick-rtl-active");
     document.documentElement.removeAttribute("data-kick-rtl-chat-font");
@@ -570,7 +702,7 @@ function refresh(): void {
       "--kick-rtl-input-font-family",
     );
     document.documentElement.style.removeProperty("--kick-rtl-font-family");
-    removeSearchBar();
+    removeJumpLatestButton();
     activeRoot.style.removeProperty("--kick-rtl-bubble-max");
     activeRoot.style.removeProperty("--kick-rtl-font-family");
     activeRoot.style.removeProperty("--kick-rtl-font-size");
@@ -578,15 +710,23 @@ function refresh(): void {
     activeRoot.removeAttribute("data-kick-rtl-hide-badges");
     activeRoot.removeAttribute("data-kick-rtl-hide-replies");
     activeRoot.removeAttribute("data-kick-rtl-debug");
+    restoreComposerInset(activeRoot);
+    composerResizeObserver?.disconnect();
+    composerResizeObserver = undefined;
+    viewportResizeObserver?.disconnect();
+    viewportResizeObserver = undefined;
+    observedComposer = undefined;
+    observedViewport = undefined;
   }
   applyWithin(activeRoot);
-  updateSearchCount();
 }
 function attach(root: HTMLElement): void {
   if (activeRoot === root) return;
   chatObserver?.disconnect();
+  if (activeRoot) restoreComposerInset(activeRoot);
   activeRoot = root;
   refresh();
+  scrollToLatestOnInitialLoad();
   let queued = false;
   const pending = new Set<Node>();
   const flush = (): void => {
@@ -602,6 +742,7 @@ function attach(root: HTMLElement): void {
       }
     });
     pending.clear();
+    updateJumpLatest();
   };
   chatObserver = new MutationObserver((records) => {
     records.forEach((record) => {
@@ -629,9 +770,18 @@ function discover(): void {
 }
 const pageObserver = new MutationObserver(() => {
   if (!activeRoot || !document.documentElement.contains(activeRoot)) discover();
+  else if (
+    settings.enabled &&
+    (!observedComposer || !document.documentElement.contains(observedComposer))
+  ) {
+    // The composer can mount after the virtual list and can resize with a
+    // multiline draft. A frame-debounced remeasure keeps the last message
+    // reachable without making message mutations expensive.
+    observeComposerInset(activeRoot);
+  }
 });
 window.addEventListener("resize", () => {
-  if (activeRoot) syncComposerInset();
+  if (activeRoot) scheduleComposerInset();
 });
 chrome.storage.local.get(DEFAULT_SETTINGS, (stored: Partial<Settings>) => {
   settings = { ...DEFAULT_SETTINGS, ...stored };
@@ -663,8 +813,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     settings.showReplies = changes.showReplies.newValue as boolean;
   if (changes.userAccents)
     settings.userAccents = changes.userAccents.newValue as boolean;
-  if (changes.highlight !== undefined)
-    settings.highlight = changes.highlight.newValue as string;
   if (changes.debugMode)
     settings.debugMode = changes.debugMode.newValue as boolean;
   settingsRevision++;
