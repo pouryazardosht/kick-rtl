@@ -35,6 +35,8 @@ interface Settings {
   showReplies: boolean;
   userAccents: boolean;
   debugMode: boolean;
+  reducedMotion: boolean;
+  readingMode: boolean;
 }
 interface MessageParts {
   text: HTMLElement;
@@ -55,8 +57,12 @@ const DEFAULT_SETTINGS: Settings = {
   showReplies: true,
   userAccents: true,
   debugMode: false,
+  reducedMotion: false,
+  readingMode: true,
 };
 let settings = { ...DEFAULT_SETTINGS };
+let storedSettings = { ...DEFAULT_SETTINGS };
+let storedChannelSettings: Record<string, Partial<Settings>> = {};
 let chatObserver: MutationObserver | undefined;
 let activeRoot: HTMLElement | undefined;
 let settingsRevision = 0;
@@ -80,6 +86,28 @@ let lastAutoScrolledChatUrl: string | undefined;
 let observedChatUrl = location.href;
 let chatLoadRevision = 0;
 let timestampPopover: HTMLElement | undefined;
+const READING_MODE_ROOT_ID = "kick-rtl-reading-mode";
+let readingModeRoot: HTMLElement | undefined;
+let readingModePaused = false;
+let followLatestRequested = false;
+
+function channelStorageKey(): string | undefined {
+  const [channel] = location.pathname.split("/").filter(Boolean);
+  // Kick channel names are the first path segment. Ignore broad site routes so
+  // a home or discovery page never becomes a misleading channel override.
+  if (!channel || /^(categories|search|following|settings|signup|login)$/iu.test(channel))
+    return undefined;
+  return channel.toLowerCase();
+}
+
+function settingsForCurrentChannel(): Settings {
+  const key = channelStorageKey();
+  return {
+    ...DEFAULT_SETTINGS,
+    ...storedSettings,
+    ...(key ? storedChannelSettings[key] : {}),
+  };
+}
 
 function fontFamilyStack(font: Font): string | undefined {
   switch (font) {
@@ -228,7 +256,10 @@ function restoreCard(parts: MessageParts): void {
   parts.text.removeAttribute(BODY_ATTRIBUTE);
   parts.username.removeAttribute("data-kick-rtl-username");
   parts.username.removeAttribute("data-kick-rtl-accent");
+  parts.row.querySelector("[data-kick-rtl-message-tools]")?.remove();
+  // Remove controls created by an older extension version after an update.
   parts.row.querySelector("[data-kick-rtl-copy-control]")?.remove();
+  parts.row.querySelector("[data-kick-rtl-override-control]")?.remove();
   const timestamp = messageTimestamp(parts);
   if (timestamp) {
     timestamp.removeAttribute("data-kick-rtl-timestamp");
@@ -381,6 +412,39 @@ function updateJumpLatestPosition(): void {
   const composerRect = composer.getBoundingClientRect();
   const offset = Math.max(12, Math.ceil(hostRect.bottom - composerRect.top) + 12);
   jumpLatestRoot.style.setProperty("--kick-rtl-jump-bottom", `${offset}px`);
+  readingModeRoot?.style.setProperty(
+    "--kick-rtl-reading-bottom",
+    `${offset + 46}px`,
+  );
+}
+
+function ensureReadingModeIndicator(): void {
+  if (!activeRoot || !settings.enabled || !settings.readingMode) {
+    removeReadingModeIndicator();
+    return;
+  }
+  const host = chatChromeHost();
+  if (!host) return;
+  if (!readingModeRoot) {
+    readingModeRoot = document.createElement("div");
+    readingModeRoot.id = READING_MODE_ROOT_ID;
+    readingModeRoot.setAttribute("role", "status");
+    readingModeRoot.innerHTML =
+      '<span aria-hidden="true">◉</span><span>حالت مطالعه</span><button type="button">ادامه</button>';
+    readingModeRoot.querySelector("button")?.addEventListener("click", () => {
+      jumpToLatest();
+    });
+  }
+  if (readingModeRoot.parentElement !== host) host.append(readingModeRoot);
+  readingModeRoot.hidden = !readingModePaused;
+  updateJumpLatestPosition();
+}
+
+function removeReadingModeIndicator(): void {
+  readingModeRoot?.remove();
+  readingModeRoot = undefined;
+  readingModePaused = false;
+  followLatestRequested = false;
 }
 
 function updateJumpLatest(): void {
@@ -391,7 +455,10 @@ function updateJumpLatest(): void {
   if (atLatest) {
     unseenMessageCount = 0;
     lastMessageIndex = currentIndex;
+    readingModePaused = false;
+    followLatestRequested = false;
   } else {
+    if (settings.readingMode && !followLatestRequested) readingModePaused = true;
     if (dividerUnread) unseenMessageCount = dividerUnread;
     else if (
       currentIndex !== undefined &&
@@ -402,6 +469,7 @@ function updateJumpLatest(): void {
     }
     if (currentIndex !== undefined) lastMessageIndex = currentIndex;
   }
+  ensureReadingModeIndicator();
   jumpLatestRoot.hidden = atLatest;
   jumpLatestRoot.setAttribute(
     "aria-label",
@@ -419,9 +487,11 @@ function updateJumpLatest(): void {
 function jumpToLatest(): void {
   if (!jumpScrollViewport) return;
   unseenMessageCount = 0;
+  readingModePaused = false;
+  followLatestRequested = true;
   jumpScrollViewport.scrollTo({
     top: jumpScrollViewport.scrollHeight,
-    behavior: "smooth",
+    behavior: settings.reducedMotion ? "auto" : "smooth",
   });
   requestAnimationFrame(updateJumpLatest);
 }
@@ -452,8 +522,13 @@ function scrollToLatestOnChatLoad(force = false): void {
 
 function beginNewChat(): void {
   observedChatUrl = location.href;
+  settings = settingsForCurrentChannel();
+  settingsRevision++;
+  refresh();
   lastMessageIndex = undefined;
   unseenMessageCount = 0;
+  readingModePaused = false;
+  followLatestRequested = true;
   scrollToLatestOnChatLoad(true);
 }
 
@@ -490,6 +565,7 @@ function ensureJumpLatestButton(): void {
   observeJumpViewport(viewport);
   if (lastMessageIndex === undefined)
     lastMessageIndex = highestVirtualMessageIndex(activeRoot);
+  ensureReadingModeIndicator();
   updateJumpLatest();
 }
 
@@ -501,6 +577,7 @@ function removeJumpLatestButton(): void {
   jumpScrollViewport = undefined;
   lastMessageIndex = undefined;
   unseenMessageCount = 0;
+  removeReadingModeIndicator();
 }
 
 async function copyToClipboard(value: string): Promise<boolean> {
@@ -579,32 +656,72 @@ function showTimestampDetails(parts: MessageParts, timestamp: HTMLElement): void
   }, 0);
 }
 
-function ensureCopyControl(parts: MessageParts): void {
-  let control = parts.row.querySelector<HTMLButtonElement>(
-    "[data-kick-rtl-copy-control]",
+function ensureMessageToolbar(parts: MessageParts): void {
+  parts.row
+    .querySelectorAll<HTMLElement>(
+      "[data-kick-rtl-copy-control], [data-kick-rtl-override-control]",
+    )
+    .forEach((control) => {
+      if (!control.closest("[data-kick-rtl-message-tools]")) control.remove();
+    });
+  let toolbar = parts.row.querySelector<HTMLElement>(
+    "[data-kick-rtl-message-tools]",
   );
-  if (!control) {
-    control = document.createElement("button");
-    control.type = "button";
-    control.textContent = "کپی";
-    control.title = "کپی پیام";
-    control.setAttribute("aria-label", "کپی پیام");
-    control.setAttribute("data-kick-rtl-copy-control", "true");
-    control.addEventListener("click", async (event) => {
+  if (!toolbar) {
+    toolbar = document.createElement("div");
+    toolbar.setAttribute("data-kick-rtl-message-tools", "true");
+    toolbar.setAttribute("aria-label", "ابزارهای پیام");
+    toolbar.innerHTML =
+      '<button type="button" data-kick-rtl-copy-control aria-label="کپی پیام" title="کپی پیام">کپی</button><button type="button" data-kick-rtl-override-control aria-label="تغییر جهت پیام">Auto</button>';
+    const copyControl = toolbar.querySelector<HTMLButtonElement>(
+      "[data-kick-rtl-copy-control]",
+    )!;
+    copyControl.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
       const timestamp = messageTimestamp(parts)?.textContent?.trim();
-      const value = [timestamp, parts.username.textContent?.trim(), parts.text.innerText.trim()]
+      const value = [
+        timestamp,
+        parts.username.textContent?.trim(),
+        parts.text.innerText.trim(),
+      ]
         .filter(Boolean)
         .join("  ");
       const copied = await copyToClipboard(value);
-      control!.textContent = copied ? "کپی شد" : "ناموفق";
+      copyControl.textContent = copied ? "کپی شد" : "ناموفق";
       window.setTimeout(() => {
-        if (control?.isConnected) control.textContent = "کپی";
+        if (copyControl.isConnected) copyControl.textContent = "کپی";
       }, 1400);
     });
-    parts.row.append(control);
+    const directionControl = toolbar.querySelector<HTMLButtonElement>(
+      "[data-kick-rtl-override-control]",
+    )!;
+    directionControl.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const current = parts.text.getAttribute("data-kick-rtl-override");
+      const next = current === null ? "rtl" : current === "rtl" ? "ltr" : null;
+      if (next) parts.text.setAttribute("data-kick-rtl-override", next);
+      else parts.text.removeAttribute("data-kick-rtl-override");
+      processedSignatures.delete(parts.text);
+      applyMessage(parts);
+    });
+    parts.row.append(toolbar);
   }
+  const control = toolbar.querySelector<HTMLButtonElement>(
+    "[data-kick-rtl-override-control]",
+  );
+  if (!control) return;
+  const override = parts.text.getAttribute("data-kick-rtl-override");
+  const label = override === "rtl" ? "RTL" : override === "ltr" ? "LTR" : "Auto";
+  control.textContent = label;
+  control.title =
+    override === "rtl"
+      ? "جهت RTL — برای LTR و سپس خودکار کلیک کنید"
+      : override === "ltr"
+        ? "جهت LTR — برای تشخیص خودکار کلیک کنید"
+        : "تشخیص خودکار — برای RTL کلیک کنید";
+  control.setAttribute("aria-label", control.title);
 }
 
 function ensureTimestampControl(parts: MessageParts): void {
@@ -643,8 +760,7 @@ function applyMessage(parts: MessageParts): void {
     processedSignatures.delete(parts.text);
     return;
   }
-  ensureOverrideControl(parts);
-  ensureCopyControl(parts);
+  ensureMessageToolbar(parts);
   ensureTimestampControl(parts);
   const signature = `${rowSignature}\u0000${settingsRevision}`;
   if (processedSignatures.get(parts.text) === signature) return;
@@ -671,38 +787,6 @@ function applyMessage(parts: MessageParts): void {
     );
   else parts.text.removeAttribute("data-kick-rtl-emote-count");
   processedSignatures.set(parts.text, signature);
-}
-function ensureOverrideControl(parts: MessageParts): void {
-  let control = parts.row.querySelector<HTMLButtonElement>(
-    "[data-kick-rtl-override-control]",
-  );
-  if (!control) {
-    control = document.createElement("button");
-    control.type = "button";
-    control.setAttribute("data-kick-rtl-override-control", "true");
-    control.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const current = parts.text.getAttribute("data-kick-rtl-override");
-      const next = current === null ? "rtl" : current === "rtl" ? "ltr" : null;
-      if (next) parts.text.setAttribute("data-kick-rtl-override", next);
-      else parts.text.removeAttribute("data-kick-rtl-override");
-      processedSignatures.delete(parts.text);
-      applyMessage(parts);
-    });
-    parts.row.append(control);
-  }
-  const override = parts.text.getAttribute("data-kick-rtl-override");
-  const label =
-    override === "rtl" ? "RTL" : override === "ltr" ? "LTR" : "Auto";
-  control.textContent = label;
-  control.title =
-    override === "rtl"
-      ? "Override: RTL (click for LTR, then Auto)"
-      : override === "ltr"
-        ? "Override: LTR (click for Auto)"
-        : "Direction: Auto (click for RTL)";
-  control.setAttribute("aria-label", control.title);
 }
 function messagePartsFromButton(
   button: HTMLButtonElement,
@@ -821,6 +905,10 @@ function refresh(): void {
       "data-kick-rtl-input-font",
       settings.inputFont,
     );
+    document.documentElement.toggleAttribute(
+      "data-kick-rtl-reduced-motion",
+      settings.reducedMotion,
+    );
     const chatStack = fontFamilyStack(settings.font);
     if (chatStack) {
       activeRoot.style.setProperty("--kick-rtl-font-family", chatStack);
@@ -859,6 +947,7 @@ function refresh(): void {
       !settings.showReplies,
     );
     activeRoot.toggleAttribute("data-kick-rtl-debug", settings.debugMode);
+    ensureReadingModeIndicator();
     syncComposerInset();
     observeComposerInset(activeRoot);
   } else {
@@ -869,6 +958,7 @@ function refresh(): void {
     activeRoot.removeAttribute("data-kick-rtl-surface");
     activeRoot.removeAttribute("data-kick-rtl-layout");
     document.documentElement.removeAttribute("data-kick-rtl-input-font");
+    document.documentElement.removeAttribute("data-kick-rtl-reduced-motion");
     document.documentElement.style.removeProperty(
       "--kick-rtl-input-font-family",
     );
@@ -986,36 +1076,31 @@ window.addEventListener("keydown", (event) => {
   event.preventDefault();
   jumpToLatest();
 });
-chrome.storage.local.get(DEFAULT_SETTINGS, (stored: Partial<Settings>) => {
-  settings = { ...DEFAULT_SETTINGS, ...stored };
+chrome.storage.local.get(
+  { ...DEFAULT_SETTINGS, channelSettings: {} },
+  (stored: Partial<Settings> & { channelSettings?: Record<string, Partial<Settings>> }) => {
+  const { channelSettings: savedChannelSettings, ...savedSettings } = stored;
+  storedSettings = { ...DEFAULT_SETTINGS, ...savedSettings };
+  storedChannelSettings = savedChannelSettings ?? {};
+  settings = settingsForCurrentChannel();
   settingsRevision++;
   discover();
   pageObserver.observe(document.documentElement, {
     childList: true,
     subtree: true,
   });
-});
+  },
+);
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "local") return;
-  if (changes.enabled) settings.enabled = changes.enabled.newValue as boolean;
-  if (changes.mode) settings.mode = changes.mode.newValue as Mode;
-  if (changes.font) settings.font = changes.font.newValue as Font;
-  if (changes.inputFont)
-    settings.inputFont = changes.inputFont.newValue as Font;
-  if (changes.density) settings.density = changes.density.newValue as Density;
-  if (changes.surface) settings.surface = changes.surface.newValue as Surface;
-  if (changes.layout) settings.layout = changes.layout.newValue as Layout;
-  if (changes.fontSize) settings.fontSize = changes.fontSize.newValue as number;
-  if (changes.showTimestamps)
-    settings.showTimestamps = changes.showTimestamps.newValue as boolean;
-  if (changes.showBadges)
-    settings.showBadges = changes.showBadges.newValue as boolean;
-  if (changes.showReplies)
-    settings.showReplies = changes.showReplies.newValue as boolean;
-  if (changes.userAccents)
-    settings.userAccents = changes.userAccents.newValue as boolean;
-  if (changes.debugMode)
-    settings.debugMode = changes.debugMode.newValue as boolean;
+  if (changes.channelSettings)
+    storedChannelSettings =
+      (changes.channelSettings.newValue as Record<string, Partial<Settings>>) ?? {};
+  (Object.keys(DEFAULT_SETTINGS) as Array<keyof Settings>).forEach((key) => {
+    if (changes[key])
+      Object.assign(storedSettings, { [key]: changes[key].newValue });
+  });
+  settings = settingsForCurrentChannel();
   settingsRevision++;
   refresh();
 });

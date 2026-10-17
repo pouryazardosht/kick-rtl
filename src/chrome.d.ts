@@ -20,6 +20,10 @@ declare const chrome: {
     };
   };
   tabs: {
+    query(
+      queryInfo: { active?: boolean; currentWindow?: boolean },
+      callback: (tabs: Array<{ id?: number; url?: string }>) => void,
+    ): void;
     reload(
       tabId?: number,
       reloadProperties?: { bypassCache?: boolean },

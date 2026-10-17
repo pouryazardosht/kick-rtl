@@ -10,156 +10,63 @@
     <main class="panel">
       <header class="hero">
         <div class="logo" aria-hidden="true">K</div>
-        <div>
-          <p class="eyebrow">KICK CHAT</p>
-          <h1>راست‌چین فارسی</h1>
-        </div>
-        <span class="status" id="status">فعال</span>
+        <div><p class="eyebrow">KICK CHAT</p><h1>راست‌چین فارسی</h1></div>
+        <span class="status" id="status" role="status">افزونه فعال است</span>
       </header>
+
       <section class="card card-primary">
         <div class="setting-row">
-          <div>
-            <h2>اصلاح جهت پیام‌ها</h2>
-            <p>فارسی، عربی، لینک، عدد و ایموجی</p>
-          </div>
-          <label class="switch" aria-label="فعال‌سازی اصلاح راست‌چین"
-            ><input id="enabled" type="checkbox" checked /><span
-              class="track"
-            ></span
-          ></label>
+          <div><h2>اصلاح جهت پیام‌ها</h2><p>فقط بدنهٔ پیام راست‌چین می‌شود؛ اطلاعات Kick دست‌نخورده می‌ماند.</p></div>
+          <label class="switch" aria-label="فعال‌سازی اصلاح راست‌چین"><input id="enabled" type="checkbox" checked /><span class="track"></span></label>
         </div>
-        <div class="section-heading">
-          <span>رفتار پیام‌ها</span>
+      </section>
+
+      <section class="card main-controls">
+        <div class="section-heading"><span>ظاهر چت</span></div>
+        <p class="field-hint">یک پیش‌تنظیم انتخاب کنید یا چیدمان را خودتان تنظیم کنید.</p>
+        <div class="preset-grid" role="group" aria-label="پیش‌تنظیم ظاهری">
+          <button type="button" class="preset" data-preset="minimal">مینیمال</button>
+          <button type="button" class="preset" data-preset="classic">کلاسیک</button>
+          <button type="button" class="preset" data-preset="imessage">iMessage</button>
+          <button type="button" class="preset" data-preset="discord">Discord</button>
+          <button type="button" class="preset preset-wide" data-preset="fast">Fast Chat</button>
         </div>
-        <label class="mode-label" for="mode">تشخیص جهت متن</label>
-        <select id="mode">
-          <option value="smart">هوشمند — تشخیص خودکار</option>
-          <option value="rtl">اجبار راست‌چین همهٔ پیام‌ها</option>
-          <option value="ltr">اجبار چپ‌چین همهٔ پیام‌ها</option>
-        </select>
-        <p class="field-hint">روی هر پیام هم می‌توانید جهت را موقتاً تغییر دهید.</p>
+        <input id="visualPreset" type="hidden" value="classic" />
         <label class="mode-label" for="layout">چیدمان پیام‌ها</label>
-        <select id="layout">
-          <option value="card">شیشه‌ای — پیش‌فرض</option>
-          <option value="imessage">فشرده — شبیه iMessage</option>
-          <option value="discord">تخت — شبیه Discord</option>
-          <option value="fast">سریع — چت‌های شلوغ</option>
-        </select>
-        <label class="mode-label" for="visualPreset">پیش‌تنظیم ظاهری</label>
-        <select id="visualPreset">
-          <option value="custom">سفارشی</option>
-          <option value="minimal">مینیمال</option>
-          <option value="imessage">iMessage</option>
-          <option value="discord">Discord</option>
-        </select>
-      </section>
-      <section class="card">
-        <div class="section-heading">
-          <span>ظاهر و خوانایی</span>
-        </div>
-        <label class="mode-label" for="font">فونت پیام‌های فارسی</label>
-        <select id="font">
-          <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
-          <option value="arad">Arad</option>
-          <option value="iransans">IRANSans</option>
-          <option value="shabnam">Shabnam</option>
-          <option value="system">فونت اصلی Kick</option>
-        </select>
-        <label class="mode-label" for="inputFont">فونت کادر نوشتن پیام</label>
-        <select id="inputFont">
-          <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
-          <option value="arad">Arad</option>
-          <option value="iransans">IRANSans</option>
-          <option value="shabnam">Shabnam</option>
-          <option value="system">فونت اصلی Kick</option>
-        </select>
+        <select id="layout"><option value="card">کلاسیک — کارت تمیز</option><option value="imessage">iMessage — حباب نرم</option><option value="discord">Discord — ردیف تخت</option><option value="fast">Fast Chat — کم‌فاصله</option></select>
         <div class="two-options">
-          <label
-            ><span>تراکم چت</span
-            ><select id="density">
-              <option value="compact">فشرده</option>
-              <option value="comfortable">راحت</option>
-            </select></label
-          ><label
-            ><span>ظاهر کارت‌ها</span
-            ><select id="surface">
-              <option value="soft">نرم</option>
-              <option value="midnight">تیره</option>
-            </select></label
-          >
+          <label><span>تراکم</span><select id="density"><option value="compact">فشرده</option><option value="comfortable">راحت</option></select></label>
+          <label><span>رنگ زمینه</span><select id="surface"><option value="soft">نرم</option><option value="midnight">تیره</option></select></label>
         </div>
-        <div class="range-row">
-          <label class="range-label" for="fontSize"
-            ><span>اندازهٔ متن پیام</span
-            ><output id="fontSizeValue">۱۴px</output></label
-          >
-          <input
-            id="fontSize"
-            type="range"
-            min="11"
-            max="22"
-            step="1"
-            value="14"
-          />
-        </div>
+        <div class="range-row"><label class="range-label" for="fontSize"><span>اندازهٔ متن</span><output id="fontSizeValue">۱۴px</output></label><input id="fontSize" type="range" min="11" max="22" step="1" value="14" /></div>
       </section>
-      <section class="card">
-        <div class="section-heading">
-          <span>نمایش در چت</span>
-        </div>
-        <div class="toggle-grid">
-          <label class="mini-toggle"
-            ><input id="showTimestamps" type="checkbox" checked /><span
-              >زمان</span
-            ></label
-          >
-          <label class="mini-toggle"
-            ><input id="showBadges" type="checkbox" checked /><span
-              >نشان‌ها</span
-            ></label
-          >
-          <label class="mini-toggle"
-            ><input id="showReplies" type="checkbox" checked /><span
-              >پیش‌نمایش پاسخ</span
-            ></label
-          >
-          <label class="mini-toggle"
-            ><input id="userAccents" type="checkbox" checked /><span
-              >رنگ نام کاربری</span
-            ></label
-          >
-          <label class="mini-toggle"
-            ><input id="debugMode" type="checkbox" /><span
-              >عیب‌یابی جهت</span
-            ></label
-          >
-        </div>
-        <p class="chat-tools-hint">
-          ابزارهای چت: روی پیام بروید برای «کپی»، روی زمان بزنید برای جزئیات،
-          و با کلید End یا دکمهٔ شناور به آخرین پیام برگردید.
-        </p>
+
+      <section class="preview" aria-label="پیش‌نمایش زندهٔ پیام">
+        <div class="preview-title"><span>پیش‌نمایش زنده</span><span class="preview-dot" aria-hidden="true"></span></div>
+        <div id="chatPreview" class="preview-message" data-layout="card" data-density="compact"><div class="preview-header"><span>12:45</span><span class="preview-badge">★</span><strong>kick_user</strong><span>:</span></div><p dir="rtl">سلام! این یک پیام فارسی برای بررسی خوانایی است.</p></div>
       </section>
-      <section class="card card-compact">
-        <div class="section-heading">
-          <span>خود افزونه</span>
+
+      <details class="advanced" id="advancedSettings">
+        <summary>تنظیمات پیشرفته <span>فونت، نمایش و رفتار</span></summary>
+        <div class="advanced-content">
+          <label class="mode-label" for="mode">تشخیص جهت متن</label>
+          <select id="mode"><option value="smart">هوشمند — تشخیص خودکار</option><option value="rtl">اجبار راست‌چین همهٔ پیام‌ها</option><option value="ltr">اجبار چپ‌چین همهٔ پیام‌ها</option></select>
+          <div class="two-options">
+            <label><span>فونت پیام</span><select id="font"><option value="vazirmatn">Vazirmatn</option><option value="arad">Arad</option><option value="iransans">IRANSans</option><option value="shabnam">Shabnam</option><option value="system">فونت اصلی Kick</option></select></label>
+            <label><span>فونت کادر نوشتن</span><select id="inputFont"><option value="vazirmatn">Vazirmatn</option><option value="arad">Arad</option><option value="iransans">IRANSans</option><option value="shabnam">Shabnam</option><option value="system">فونت اصلی Kick</option></select></label>
+          </div>
+          <div class="toggle-grid">
+            <label class="mini-toggle"><input id="showTimestamps" type="checkbox" checked /><span>زمان</span></label><label class="mini-toggle"><input id="showBadges" type="checkbox" checked /><span>نشان‌ها</span></label><label class="mini-toggle"><input id="showReplies" type="checkbox" checked /><span>پیش‌نمایش پاسخ</span></label><label class="mini-toggle"><input id="userAccents" type="checkbox" checked /><span>رنگ نام کاربری</span></label><label class="mini-toggle"><input id="readingMode" type="checkbox" checked /><span>حالت مطالعه</span></label><label class="mini-toggle"><input id="reducedMotion" type="checkbox" /><span>کاهش حرکت</span></label><label class="mini-toggle"><input id="debugMode" type="checkbox" /><span>عیب‌یابی جهت</span></label>
+          </div>
+          <label class="mode-label" for="popupFont">فونت پنل افزونه</label>
+          <select id="popupFont"><option value="vazirmatn">Vazirmatn</option><option value="arad">Arad</option><option value="iransans">IRANSans</option><option value="shabnam">Shabnam</option><option value="system">سیستم</option></select>
         </div>
-        <label class="mode-label" for="popupFont">فونت پنل افزونه</label>
-        <select id="popupFont">
-          <option value="vazirmatn">Vazirmatn — پیش‌فرض</option>
-          <option value="arad">Arad</option>
-          <option value="iransans">IRANSans</option>
-          <option value="shabnam">Shabnam</option>
-          <option value="system">سیستم</option>
-        </select>
-      </section>
-      <section class="hint">
-        <span aria-hidden="true">↻</span>
-        <p>تنظیمات فوراً اعمال می‌شوند. اگر Kick تازه باز شده، یک‌بار صفحه را تازه کنید.</p>
-      </section>
-      <button id="reload" class="reload" type="button">
-        تازه‌سازی صفحهٔ Kick
-      </button>
-      <p class="footer">RTL، چیدمان و جستجو فقط روی چت Kick</p>
+      </details>
+
+      <section class="card channel-card"><div class="channel-row"><div><strong>تنظیمات اختصاصی کانال</strong><p id="channelName">برای این کانال</p></div><label class="switch small-switch" aria-label="ذخیره تنظیمات برای این کانال"><input id="perChannel" type="checkbox" /><span class="track"></span></label></div></section>
+      <div class="actions"><button id="exportSettings" class="secondary" type="button">خروجی JSON</button><button id="importSettings" class="secondary" type="button">ورود تنظیمات</button><button id="resetSettings" class="secondary danger" type="button">بازنشانی</button><input id="importFile" type="file" accept="application/json,.json" hidden /></div>
+      <button id="reload" class="reload" type="button">تازه‌سازی صفحهٔ Kick</button>
+      <p class="footer">End به آخرین پیام می‌رود. تنظیمات فوراً اعمال می‌شوند.</p>
     </main>
     <script src="popup.js"></script>
   </body>
