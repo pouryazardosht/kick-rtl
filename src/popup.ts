@@ -1,6 +1,6 @@
 type PopupFont = "vazirmatn" | "arad" | "iransans" | "shabnam" | "system";
 type PopupLayout = "card" | "imessage" | "discord" | "fast";
-type VisualPreset = "custom" | "minimal" | "classic" | "imessage" | "discord" | "fast";
+type VisualPreset = "custom" | "minimal" | "classic" | "imessage" | "discord" | "fast" | "aurora";
 interface PopupSettings {
   enabled: boolean;
   mode: "smart" | "rtl" | "ltr";
@@ -9,7 +9,7 @@ interface PopupSettings {
   font: PopupFont;
   inputFont: PopupFont;
   density: "compact" | "comfortable";
-  surface: "soft" | "midnight";
+  surface: "soft" | "midnight" | "aurora";
   popupFont: PopupFont;
   fontSize: number;
   showTimestamps: boolean;
@@ -34,6 +34,7 @@ const visualPresets: Record<Exclude<VisualPreset, "custom">, Partial<PopupSettin
   imessage: { layout: "imessage", density: "comfortable", surface: "soft", fontSize: 14, showTimestamps: true, showBadges: true, showReplies: true, userAccents: true },
   discord: { layout: "discord", density: "compact", surface: "midnight", fontSize: 14, showTimestamps: true, showBadges: true, showReplies: false, userAccents: true },
   fast: { layout: "fast", density: "compact", surface: "midnight", fontSize: 13, showTimestamps: true, showBadges: true, showReplies: false, userAccents: true },
+  aurora: { layout: "card", density: "comfortable", surface: "aurora", fontSize: 15, showTimestamps: true, showBadges: true, showReplies: true, userAccents: true },
 };
 
 const $ = <T extends HTMLElement>(selector: string): T => document.querySelector<T>(selector)!;
@@ -102,6 +103,7 @@ function render(settings: PopupSettings): void {
   channelName.textContent = activeChannel ? `کانال ${activeChannel}` : "در یک کانال Kick باز کنید";
   resetButton.textContent = activeChannel && perChannelInput.checked ? "بازنشانی کانال" : "بازنشانی عمومی";
   document.documentElement.dataset.font = settings.popupFont;
+  document.documentElement.dataset.popupTheme = settings.surface === "aurora" ? "aurora" : "default";
   dependentControls.forEach((control) => { control.disabled = !settings.enabled || (control === perChannelInput && !activeChannel); });
   statusElement.textContent = settings.enabled ? "افزونه فعال است" : "افزونه غیرفعال است";
   statusElement.classList.toggle("is-off", !settings.enabled);

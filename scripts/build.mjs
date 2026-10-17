@@ -16,3 +16,6 @@ await cp("manifest.json", "dist/manifest.json");
 await cp("src/content.css", "dist/content.css");
 await cp("src/popup.html", "dist/popup.html");
 await cp("src/popup.css", "dist/popup.css");
+for (const size of [16, 32, 48, 128]) {
+  run("rsvg-convert", ["-w", String(size), "-h", String(size), "src/icon.svg", "-o", `dist/icon-${size}.png`]);
+}

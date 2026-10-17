@@ -3,6 +3,12 @@
   "name": "Kick RTL Chat Fix",
   "version": "1.0.0",
   "description": "Fixes Persian, Arabic, mixed-language, and emoji bidi rendering in Kick chat.",
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
   "permissions": ["storage", "activeTab"],
   "action": {
     "default_title": "تنظیمات راست‌چین Kick",

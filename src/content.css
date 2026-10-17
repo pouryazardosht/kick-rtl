@@ -62,6 +62,34 @@
   background: rgb(0 0 0 / 0.28);
 }
 
+/* Aurora: an ink-blue, teal-edged surface designed for long reading sessions. */
+#chatroom-messages[data-kick-rtl-surface="aurora"] [data-kick-rtl-card] {
+  border-color: rgb(116 212 223 / 0.22);
+  background:
+    linear-gradient(135deg, rgb(42 72 99 / 0.42), rgb(24 38 57 / 0.5)),
+    rgb(14 25 39 / 0.9);
+  box-shadow: 0 1px 0 rgb(202 250 255 / 0.07) inset;
+}
+#chatroom-messages[data-kick-rtl-surface="aurora"] [data-kick-rtl-card]:hover {
+  border-color: rgb(129 228 221 / 0.38);
+  background:
+    linear-gradient(135deg, rgb(48 82 108 / 0.56), rgb(25 44 66 / 0.62)),
+    rgb(14 25 39 / 0.92);
+}
+#chatroom-messages[data-kick-rtl-surface="aurora"] [data-kick-rtl-body] {
+  border-color: rgb(159 230 233 / 0.14);
+  background: rgb(5 17 30 / 0.38);
+  color: rgb(243 251 255 / 0.96);
+}
+#chatroom-messages[data-kick-rtl-surface="aurora"] [data-kick-rtl-message-tools] button {
+  border-color: rgb(147 229 220 / 0.22);
+  background: rgb(9 25 39 / 0.84);
+  color: #d8fbf4;
+}
+#chatroom-messages[data-kick-rtl-surface="aurora"] [data-kick-rtl-message-tools] button:hover {
+  background: rgb(48 105 111 / 0.58);
+}
+
 /* Header: timestamp, badges and username retain Kick's native LTR ordering. */
 #chatroom-messages [data-kick-rtl-card] > div:first-child {
   grid-column: 1;

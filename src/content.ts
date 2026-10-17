@@ -19,7 +19,7 @@ type Direction = "rtl" | "ltr";
 type Mode = "smart" | "rtl" | "ltr";
 type Font = "vazirmatn" | "arad" | "iransans" | "shabnam" | "system";
 type Density = "compact" | "comfortable";
-type Surface = "soft" | "midnight";
+type Surface = "soft" | "midnight" | "aurora";
 type Layout = "card" | "imessage" | "discord" | "fast";
 interface Settings {
   enabled: boolean;
@@ -672,7 +672,7 @@ function ensureMessageToolbar(parts: MessageParts): void {
     toolbar.setAttribute("data-kick-rtl-message-tools", "true");
     toolbar.setAttribute("aria-label", "ابزارهای پیام");
     toolbar.innerHTML =
-      '<button type="button" data-kick-rtl-copy-control aria-label="کپی پیام" title="کپی پیام">کپی</button><button type="button" data-kick-rtl-override-control aria-label="تغییر جهت پیام">Auto</button>';
+      '<button type="button" data-kick-rtl-copy-control aria-label="کپی پیام همراه با نام و زمان" title="کپی پیام همراه با نام و زمان">کپی</button><button type="button" data-kick-rtl-copy-text-control aria-label="کپی فقط متن پیام" title="کپی فقط متن پیام">متن</button><button type="button" data-kick-rtl-override-control aria-label="تغییر جهت پیام">Auto</button>';
     const copyControl = toolbar.querySelector<HTMLButtonElement>(
       "[data-kick-rtl-copy-control]",
     )!;
@@ -691,6 +691,18 @@ function ensureMessageToolbar(parts: MessageParts): void {
       copyControl.textContent = copied ? "کپی شد" : "ناموفق";
       window.setTimeout(() => {
         if (copyControl.isConnected) copyControl.textContent = "کپی";
+      }, 1400);
+    });
+    const copyTextControl = toolbar.querySelector<HTMLButtonElement>(
+      "[data-kick-rtl-copy-text-control]",
+    )!;
+    copyTextControl.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const copied = await copyToClipboard(parts.text.innerText.trim());
+      copyTextControl.textContent = copied ? "کپی شد" : "ناموفق";
+      window.setTimeout(() => {
+        if (copyTextControl.isConnected) copyTextControl.textContent = "متن";
       }, 1400);
     });
     const directionControl = toolbar.querySelector<HTMLButtonElement>(

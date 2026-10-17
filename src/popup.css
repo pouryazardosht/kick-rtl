@@ -29,9 +29,9 @@ h2 { margin: 0 0 3px; font-size: 14px; font-weight: 750; }
 select { width: 100%; appearance: none; border: 1px solid rgb(255 255 255 / .14); border-radius: 9px; padding: 9px 10px 9px 2rem; outline: none; background-color: #101310; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Cpath d='m3 5 4 4 4-4' fill='none' stroke='%23d8e2d6' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.7'/%3E%3C/svg%3E"); background-position: left .65rem center; background-repeat: no-repeat; color: #f4f5f3; font: inherit; font-size: 12px; cursor: pointer; }
 select:hover { border-color: rgb(171 238 151 / .4); }
 select:disabled, button:disabled { opacity: .45; cursor: not-allowed; }
-.preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 11px; }
+.preset-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 11px; }
 .preset { min-height: 35px; border: 1px solid rgb(255 255 255 / .13); border-radius: 9px; background: rgb(255 255 255 / .04); color: #dfe5de; font: 650 10px/1.2 inherit; cursor: pointer; }
-.preset-wide { grid-column: span 4; min-height: 30px; }
+.preset-wide { grid-column: auto; min-height: 35px; }
 .preset.is-selected { border-color: rgb(137 235 112 / .7); background: rgb(104 205 82 / .18); color: #d9ffd0; }
 .two-options { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 13px; }
 .two-options label { color: #e1e5e0; font-size: 11px; font-weight: 650; }
@@ -58,3 +58,17 @@ input[type="range"] { width: 100%; accent-color: #78d85a; }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }.secondary, .reload { border-radius: 10px; padding: 10px; font: 700 12px inherit; cursor: pointer; }.secondary { border: 1px solid rgb(255 255 255 / .14); background: rgb(255 255 255 / .045); color: #d9dfd8; }.secondary.danger { color: #f1c5c5; }.reload { width: 100%; border: 1px solid rgb(146 235 119 / .6); background: #77ce57; color: #071006; }.footer { margin: 11px 0 0; color: #969f96; text-align: center; font-size: 10px; }
 :is(.switch input:focus-visible + .track, select:focus-visible, input:focus-visible, button:focus-visible, summary:focus-visible) { outline: 2px solid #b5f3a1; outline-offset: 2px; }
 html[data-font="vazirmatn"] body { font-family: Vazirmatn, Tahoma, sans-serif; } html[data-font="arad"] body { font-family: Arad, "B Arad", Tahoma, sans-serif; } html[data-font="iransans"] body { font-family: IRANSans, "IRANSansX", Tahoma, sans-serif; } html[data-font="shabnam"] body { font-family: Shabnam, Tahoma, sans-serif; }
+
+/* Aurora uses colour as a quiet frame, while keeping text contrast intentionally high. */
+html[data-popup-theme="aurora"] body { background: #0b1424; scrollbar-color: #4f9fa4 #101b2c; }
+html[data-popup-theme="aurora"] .panel { background: radial-gradient(circle at 92% 0%, rgb(65 170 165 / .22), transparent 32%), linear-gradient(155deg, #142a42, #0c1728 64%); }
+html[data-popup-theme="aurora"] .card, html[data-popup-theme="aurora"] .preview, html[data-popup-theme="aurora"] .advanced { border-color: rgb(139 222 224 / .2); background: rgb(17 42 62 / .52); }
+html[data-popup-theme="aurora"] .card-primary { border-color: rgb(112 225 195 / .38); background: linear-gradient(135deg, rgb(41 122 116 / .2), rgb(37 68 104 / .28)); }
+html[data-popup-theme="aurora"] .logo { background: linear-gradient(145deg, #75e8d2, #6aa4ed); }
+html[data-popup-theme="aurora"] .status { border-color: rgb(126 233 211 / .42); background: rgb(89 198 178 / .14); color: #d4fff6; }
+html[data-popup-theme="aurora"] select { border-color: rgb(135 221 224 / .24); background-color: #0d2135; }
+html[data-popup-theme="aurora"] .preview { background: rgb(7 22 37 / .78); }
+html[data-popup-theme="aurora"] .preview-message { border-color: rgb(132 219 226 / .21); background: rgb(33 72 96 / .35); }
+html[data-popup-theme="aurora"] .preview-message p { border-color: rgb(154 235 233 / .15); background: rgb(4 18 33 / .48); }
+html[data-popup-theme="aurora"] .preset.is-selected { border-color: rgb(111 226 202 / .8); background: rgb(53 154 143 / .25); color: #d9fff6; }
+html[data-popup-theme="aurora"] .reload { border-color: rgb(132 234 209 / .65); background: linear-gradient(135deg, #6ed9bf, #68aee3); }
