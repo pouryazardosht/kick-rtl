@@ -322,6 +322,15 @@ input[type="range"] {
   accent-color: #53fc18;
 }
 
+.chat-tools-hint {
+  margin: 12px 0 0;
+  border-right: 2px solid rgb(165 247 139 / 0.52);
+  padding-right: 9px;
+  color: #bec5bd;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
 .hint {
   display: flex;
   align-items: flex-start;

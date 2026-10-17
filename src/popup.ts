@@ -11,7 +11,6 @@ interface PopupSettings {
   density: "compact" | "comfortable";
   surface: "soft" | "midnight";
   popupFont: PopupFont;
-  bubbleWidth: number;
   fontSize: number;
   showTimestamps: boolean;
   showBadges: boolean;
@@ -29,7 +28,6 @@ const defaults: PopupSettings = {
   density: "compact",
   surface: "soft",
   popupFont: "vazirmatn",
-  bubbleWidth: 100,
   fontSize: 14,
   showTimestamps: true,
   showBadges: true,
@@ -42,7 +40,6 @@ const visualPresets: Record<Exclude<VisualPreset, "custom">, Partial<PopupSettin
     layout: "fast",
     density: "compact",
     surface: "midnight",
-    bubbleWidth: 100,
     fontSize: 13,
     showTimestamps: false,
     showBadges: false,
@@ -53,7 +50,6 @@ const visualPresets: Record<Exclude<VisualPreset, "custom">, Partial<PopupSettin
     layout: "imessage",
     density: "comfortable",
     surface: "soft",
-    bubbleWidth: 86,
     fontSize: 14,
     showTimestamps: true,
     showBadges: true,
@@ -64,7 +60,6 @@ const visualPresets: Record<Exclude<VisualPreset, "custom">, Partial<PopupSettin
     layout: "discord",
     density: "compact",
     surface: "midnight",
-    bubbleWidth: 100,
     fontSize: 14,
     showTimestamps: true,
     showBadges: true,
@@ -82,8 +77,6 @@ const inputFontInput = document.querySelector<HTMLSelectElement>("#inputFont")!;
 const densityInput = document.querySelector<HTMLSelectElement>("#density")!;
 const surfaceInput = document.querySelector<HTMLSelectElement>("#surface")!;
 const popupFontInput = document.querySelector<HTMLSelectElement>("#popupFont")!;
-const bubbleWidthInput = document.querySelector<HTMLInputElement>("#bubbleWidth")!;
-const bubbleWidthValue = document.querySelector<HTMLOutputElement>("#bubbleWidthValue")!;
 const fontSizeInput = document.querySelector<HTMLInputElement>("#fontSize")!;
 const fontSizeValue = document.querySelector<HTMLOutputElement>("#fontSizeValue")!;
 const showTimestampsInput = document.querySelector<HTMLInputElement>("#showTimestamps")!;
@@ -97,9 +90,6 @@ const dependentControls = document.querySelectorAll<
   HTMLInputElement | HTMLSelectElement
 >(".card input:not(#enabled), .card select");
 
-function formatPercent(value: number): string {
-  return `${value.toLocaleString("fa-IR")}٪`;
-}
 function formatPx(value: number): string {
   return `${value.toLocaleString("fa-IR")}px`;
 }
@@ -113,8 +103,6 @@ function render(settings: PopupSettings): void {
   densityInput.value = settings.density;
   surfaceInput.value = settings.surface;
   popupFontInput.value = settings.popupFont;
-  bubbleWidthInput.value = String(settings.bubbleWidth);
-  bubbleWidthValue.textContent = formatPercent(settings.bubbleWidth);
   fontSizeInput.value = String(settings.fontSize);
   fontSizeValue.textContent = formatPx(settings.fontSize);
   showTimestampsInput.checked = settings.showTimestamps;
@@ -140,7 +128,6 @@ function readSettings(): PopupSettings {
     density: densityInput.value as PopupSettings["density"],
     surface: surfaceInput.value as PopupSettings["surface"],
     popupFont: popupFontInput.value as PopupFont,
-    bubbleWidth: Number(bubbleWidthInput.value),
     fontSize: Number(fontSizeInput.value),
     showTimestamps: showTimestampsInput.checked,
     showBadges: showBadgesInput.checked,
@@ -200,10 +187,6 @@ inputFontInput.addEventListener("change", () => save());
 densityInput.addEventListener("change", () => save(true));
 surfaceInput.addEventListener("change", () => save(true));
 popupFontInput.addEventListener("change", () => save());
-bubbleWidthInput.addEventListener("input", () => {
-  bubbleWidthValue.textContent = formatPercent(Number(bubbleWidthInput.value));
-  save(true);
-});
 fontSizeInput.addEventListener("input", () => {
   fontSizeValue.textContent = formatPx(Number(fontSizeInput.value));
   save(true);

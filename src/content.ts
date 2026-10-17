@@ -29,7 +29,6 @@ interface Settings {
   density: Density;
   surface: Surface;
   layout: Layout;
-  bubbleWidth: number;
   fontSize: number;
   showTimestamps: boolean;
   showBadges: boolean;
@@ -50,7 +49,6 @@ const DEFAULT_SETTINGS: Settings = {
   density: "compact",
   surface: "soft",
   layout: "card",
-  bubbleWidth: 100,
   fontSize: 14,
   showTimestamps: true,
   showBadges: true,
@@ -80,6 +78,7 @@ let lastMessageIndex: number | undefined;
 let unseenMessageCount = 0;
 let lastAutoScrolledChatUrl: string | undefined;
 let observedChatUrl = location.href;
+let chatLoadRevision = 0;
 let timestampPopover: HTMLElement | undefined;
 
 function fontFamilyStack(font: Font): string | undefined {
@@ -114,7 +113,11 @@ function chatComposer(root: HTMLElement): HTMLElement | undefined {
 }
 
 function scrollViewportFor(root: HTMLElement): HTMLElement | undefined {
-  let ancestor = root.parentElement;
+  // In Kick's current DOM, #chatroom-messages is the scrolling viewport:
+  // <div id="chatroom-messages" class="... overflow-y-auto ...">.
+  // Check it first; starting at its parent scrolls a non-scrolling wrapper and
+  // leaves the virtual message list exactly where it was.
+  let ancestor: HTMLElement | null = root;
   while (ancestor && ancestor !== document.body) {
     const overflowY = getComputedStyle(ancestor).overflowY;
     if (/(auto|scroll|overlay)/u.test(overflowY) && ancestor.clientHeight > 0)
@@ -228,6 +231,7 @@ function restoreCard(parts: MessageParts): void {
   parts.row.querySelector("[data-kick-rtl-copy-control]")?.remove();
   const timestamp = messageTimestamp(parts);
   if (timestamp) {
+    timestamp.removeAttribute("data-kick-rtl-timestamp");
     timestamp.removeAttribute("data-kick-rtl-timestamp-control");
     timestamp.removeAttribute("role");
     timestamp.removeAttribute("tabindex");
@@ -426,27 +430,31 @@ function scrollToLatestOnChatLoad(force = false): void {
   const chatUrl = location.href;
   if (!force && lastAutoScrolledChatUrl === chatUrl) return;
   lastAutoScrolledChatUrl = chatUrl;
-  let pass = 0;
-  let passesWithMessages = 0;
-  const settleAtLatest = (): void => {
+  const revision = ++chatLoadRevision;
+  const scrollToActualEnd = (): void => {
+    if (revision !== chatLoadRevision || location.href !== chatUrl) return;
     const root = activeRoot;
     const viewport = root ? scrollViewportFor(root) : undefined;
     if (!root || !viewport) return;
-    const hasMessages = root.querySelector("[data-index]") !== null;
-    if (hasMessages) {
-      viewport.scrollTop = viewport.scrollHeight;
-      passesWithMessages += 1;
-    }
-    pass += 1;
-    // Kick replaces the virtual-list height over several animation frames.
-    // Keep this brief and only run it for a newly opened chat, never after.
-    if (pass < 8 || (passesWithMessages < 3 && pass < 24)) {
-      requestAnimationFrame(settleAtLatest);
-      return;
-    }
+    // The list is virtualized and updates its height asynchronously. Setting
+    // both APIs avoids smooth-scroll interruption by Kick's own reconciliation.
+    const end = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    viewport.scrollTop = end;
+    viewport.scrollTo({ top: end, behavior: "auto" });
     updateJumpLatest();
   };
-  requestAnimationFrame(settleAtLatest);
+  // The later passes cover delayed hydration and late-loaded badges without
+  // taking control after the newly opened chat has settled.
+  [0, 32, 100, 220, 450, 800, 1_300, 2_000].forEach((delay) => {
+    window.setTimeout(scrollToActualEnd, delay);
+  });
+}
+
+function beginNewChat(): void {
+  observedChatUrl = location.href;
+  lastMessageIndex = undefined;
+  unseenMessageCount = 0;
+  scrollToLatestOnChatLoad(true);
 }
 
 function observeJumpViewport(viewport: HTMLElement | undefined): void {
@@ -514,10 +522,14 @@ async function copyToClipboard(value: string): Promise<boolean> {
 }
 
 function messageTimestamp(parts: MessageParts): HTMLElement | undefined {
-  const timestamp = parts.row.firstElementChild;
-  return timestamp instanceof HTMLElement && /\d/u.test(timestamp.textContent ?? "")
-    ? timestamp
-    : undefined;
+  // In current Kick markup the header is a wrapper. Select the actual short
+  // time span, never the wrapper (which also contains badges and username).
+  return Array.from(parts.row.querySelectorAll<HTMLElement>("span")).find(
+    (element) =>
+      /^\d{1,2}:\d{2}(?:\s*[AP]M)?$/iu.test(
+        element.textContent?.trim() ?? "",
+      ),
+  );
 }
 
 function timestampDetails(timestamp: HTMLElement): string {
@@ -598,6 +610,7 @@ function ensureCopyControl(parts: MessageParts): void {
 function ensureTimestampControl(parts: MessageParts): void {
   const timestamp = messageTimestamp(parts);
   if (!timestamp) return;
+  timestamp.setAttribute("data-kick-rtl-timestamp", "true");
   timestamp.setAttribute("data-kick-rtl-timestamp-control", "true");
   timestamp.tabIndex = 0;
   timestamp.setAttribute("role", "button");
@@ -696,8 +709,26 @@ function messagePartsFromButton(
 ): MessageParts | undefined {
   const identity = button.parentElement;
   const separator = identity?.nextElementSibling;
-  const text = separator?.nextElementSibling;
-  const row = identity?.parentElement;
+  // Kick has used two message shapes. The current markup nests the username
+  // and colon in a header div, with the text span immediately after that div:
+  //   <div><div>…<button data-prevent-expand>name</button></div><span>:</span></div>
+  //   <span class="leading-[1.55]">message</span>
+  // Keep support for the older all-in-one row as well.
+  const oldRow = identity?.parentElement;
+  const oldText = separator?.nextElementSibling;
+  const header = oldRow;
+  const text =
+    oldText instanceof HTMLElement
+      ? oldText
+      : header?.nextElementSibling instanceof HTMLElement
+        ? header.nextElementSibling
+        : undefined;
+  const row =
+    oldText instanceof HTMLElement
+      ? oldRow
+      : header?.parentElement instanceof HTMLElement
+        ? header.parentElement
+        : undefined;
   if (
     !(text instanceof HTMLElement) ||
     !(row instanceof HTMLElement) ||
@@ -812,10 +843,6 @@ function refresh(): void {
         "--kick-rtl-input-font-family",
       );
     activeRoot.style.setProperty(
-      "--kick-rtl-bubble-max",
-      `${Math.min(100, Math.max(50, settings.bubbleWidth))}%`,
-    );
-    activeRoot.style.setProperty(
       "--kick-rtl-font-size",
       `${Math.min(22, Math.max(11, settings.fontSize))}px`,
     );
@@ -847,7 +874,6 @@ function refresh(): void {
     );
     document.documentElement.style.removeProperty("--kick-rtl-font-family");
     removeJumpLatestButton();
-    activeRoot.style.removeProperty("--kick-rtl-bubble-max");
     activeRoot.style.removeProperty("--kick-rtl-font-family");
     activeRoot.style.removeProperty("--kick-rtl-font-size");
     activeRoot.removeAttribute("data-kick-rtl-hide-timestamps");
@@ -914,10 +940,7 @@ function discover(): void {
 }
 const pageObserver = new MutationObserver(() => {
   if (observedChatUrl !== location.href) {
-    observedChatUrl = location.href;
-    lastMessageIndex = undefined;
-    unseenMessageCount = 0;
-    scrollToLatestOnChatLoad();
+    beginNewChat();
   }
   if (!activeRoot || !document.documentElement.contains(activeRoot)) discover();
   else if (
@@ -930,6 +953,16 @@ const pageObserver = new MutationObserver(() => {
     observeComposerInset(activeRoot);
   }
 });
+(["pushState", "replaceState"] as const).forEach((method) => {
+  const original = history[method];
+  history[method] = function (...args: Parameters<History[typeof method]>) {
+    const result = original.apply(this, args);
+    queueMicrotask(beginNewChat);
+    return result;
+  };
+});
+window.addEventListener("popstate", beginNewChat);
+window.addEventListener("hashchange", beginNewChat);
 window.addEventListener("resize", () => {
   if (activeRoot) scheduleComposerInset();
 });
@@ -972,8 +1005,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.density) settings.density = changes.density.newValue as Density;
   if (changes.surface) settings.surface = changes.surface.newValue as Surface;
   if (changes.layout) settings.layout = changes.layout.newValue as Layout;
-  if (changes.bubbleWidth)
-    settings.bubbleWidth = changes.bubbleWidth.newValue as number;
   if (changes.fontSize) settings.fontSize = changes.fontSize.newValue as number;
   if (changes.showTimestamps)
     settings.showTimestamps = changes.showTimestamps.newValue as boolean;
